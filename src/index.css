@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* Let Tailwind's `dark:` variant respond to a `.dark` class on <html>
+   (toggled by useSettingsStore) instead of only system preference —
+   this is the standard convention shadcn/ui generated code expects,
+   which keeps a future `npx shadcn add` fully compatible. */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ---- Loom design tokens — light theme (default) ---- */
+  --background: #f5f3ee;
+  --foreground: #1c1c28;
+  --card: #ffffff;
+  --card-foreground: #1c1c28;
+  --popover: #ffffff;
+  --popover-foreground: #1c1c28;
+  --primary: #9c6b23;
+  --primary-foreground: #fff8ec;
+  --secondary: #efece4;
+  --secondary-foreground: #1c1c28;
+  --muted: #faf8f3;
+  --muted-foreground: #62636f;
+  --accent: #faf8f3;
+  --accent-foreground: #1c1c28;
+  --destructive: #c94a37;
+  --destructive-foreground: #fff5f3;
+  --border: rgba(20, 20, 30, 0.1);
+  --input: rgba(20, 20, 30, 0.16);
+  --ring: #5a46d6;
+  --radius: 0.875rem;
+
+  /* Brand hues (Thread Gold / Structure Violet / Growth Mint) —
+     used sparingly for graph edges, links, and status states. */
+  --brand-gold: #9c6b23;
+  --brand-violet: #5a46d6;
+  --brand-mint: #1e9c74;
+  --text-faint: #8c8d99;
+}
+
+.dark {
+  /* ---- Loom design tokens — dark theme ---- */
+  --background: #12131c;
+  --foreground: #edeef2;
+  --card: #1b1d30;
+  --card-foreground: #edeef2;
+  --popover: #21243a;
+  --popover-foreground: #edeef2;
+  --primary: #d9ae68;
+  --primary-foreground: #1b1508;
+  --secondary: #16182a;
+  --secondary-foreground: #edeef2;
+  --muted: #21243a;
+  --muted-foreground: #9c9db3;
+  --accent: #21243a;
+  --accent-foreground: #edeef2;
+  --destructive: #f0806f;
+  --destructive-foreground: #2a0f0a;
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.16);
+  --ring: #8b7ff0;
+
+  --brand-gold: #d9ae68;
+  --brand-violet: #8b7ff0;
+  --brand-mint: #4fd8a5;
+  --text-faint: #6c6d82;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-violet: var(--brand-violet);
+  --color-brand-mint: var(--brand-mint);
+  --color-text-faint: var(--text-faint);
+
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  --font-sans: -apple-system, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
