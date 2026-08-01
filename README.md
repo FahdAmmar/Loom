@@ -2,15 +2,15 @@
 
 A calm knowledge workspace — structured pages woven into a living graph of ideas.
 
-This is **Phase 2 — Workspace** of the 7-phase roadmap. Real pages now exist:
-create, nest, navigate, rename, delete. The block editor body is still a
-placeholder — that's Phase 3.
+This is **Phase 3 — Editor** of the 7-phase roadmap. Pages now have real,
+editable content: a block editor with formatting, slash commands, and
+autosave. Linking pages together and the visual graph are next, in Phase 4.
 
 ## Stack
 
 Vite 8 · React 19 · TypeScript · Tailwind CSS v4 · Zustand · Axios ·
-React Router v8 · Radix UI (Slot, Dropdown Menu) · hand-built shadcn/ui-style
-primitives (Button, Dialog, Dropdown Menu, Confirm Dialog)
+React Router v8 · Radix UI (Slot, Dropdown Menu) · **Tiptap** (per-block
+inline rich text) · hand-built shadcn/ui-style primitives
 
 ## Getting started
 
@@ -18,6 +18,9 @@ primitives (Button, Dialog, Dropdown Menu, Confirm Dialog)
 npm install
 npm run dev       # start the dev server
 ```
+
+Open the seeded "Welcome to Loom" page to see the editor with real content —
+headings, a callout, lists, a checklist, a quote, and a code block.
 
 ## Scripts
 
@@ -35,73 +38,65 @@ reports 0 vulnerabilities.
 
 ## What's actually working right now
 
-**From Phase 1:** theme system (light/dark/system, persisted, no flash),
-responsive `AppShell` (desktop rail + `<dialog>`-based mobile drawer),
-centralized Axios client, full route table.
+**From Phase 1–2:** theme system, responsive `AppShell`, page tree with
+create/delete/rename/navigate, breadcrumbs.
 
-**New in Phase 2:**
+**New in Phase 3 — the block editor:**
 
-- Real pages, backed by a localStorage-mocked data layer (`api/pages.ts`,
-  `api/workspaces.ts`) behind the same async function shape a real backend
-  call would have — swapping in a real API later is an internal change only
-- Page tree in the sidebar: nested, expand/collapse (state lives in
-  `useSidebarStore`, not local component state), a starter "Welcome to Loom"
-  page tree seeded on first run so nesting is visible immediately
-- Create / delete (cascading, with a confirmation dialog that tells you how
-  many sub-pages come with it) / rename (inline, in the page header) /
-  navigate — all wired through `usePageStore`
-- Breadcrumbs, computed live from the page tree, not stored
-- Loading skeleton for the tree, "page doesn't exist" state for stale/deleted
-  URLs (distinct from the generic 404)
+- 12 block types (see `src/features/editor/README.md` for the full list)
+  with a `/` command menu to insert or convert any block
+- Inline formatting via Tiptap: bold, italic, underline, strikethrough,
+  inline code — typed with markdown shortcuts (`**bold**`, `` `code` ``),
+  not a toolbar
+- Keyboard flow between blocks: Enter, Backspace-to-delete-and-merge-focus,
+  Arrow Up/Down
+- Move up/down and delete per block via a hover rail
+- Real autosave: debounced 600ms, "Saving…/Saved" shown in the page header,
+  and — this mattered enough to fix mid-phase — **edits are flushed
+  immediately if you navigate away before the debounce fires**, so a fast
+  page switch can't silently drop your last keystroke
 
-## A note on scope: what Phase 2 deliberately does _not_ include
+## A note on scope: what Phase 3 deliberately does _not_ include
 
-The plan's general Page System section lists reordering, moving, and
-favoriting alongside creating/editing/deleting/nesting — but the Phase 2
-roadmap bullet list only calls out **Sidebar, Workspace, Page tree, Nested
-pages, Page creation, Page deletion, Page navigation**. Favorites and Recents
-are explicitly Phase 6 ("Productivity") in the roadmap, so:
+The roadmap's Phase 3 bullets are **Editor, Blocks, Slash commands,
+Formatting, Markdown support, Autosave** — all present. Left out on purpose:
 
-- No favoriting UI yet (the `Page.isFavorite` field exists in the type, unused)
-- No drag-and-drop reordering yet
-- No workspace switcher (still a single hardcoded `default` workspace)
-
-These are staying out on purpose rather than getting built ahead of their
-phase.
-
-## Routes
-
-| Route                          | Renders                                |
-| ------------------------------ | -------------------------------------- |
-| `/`                            | Redirects to `/w/default`              |
-| `/w/:workspaceId`              | **Real** — empty state or new-page CTA |
-| `/w/:workspaceId/p/:pageId`    | **Real header**, placeholder body      |
-| `/w/:workspaceId/graph`        | Graph View (placeholder)               |
-| `/w/:workspaceId/tags/:tagId?` | Tags (placeholder)                     |
-| `/w/:workspaceId/templates`    | Templates (placeholder)                |
-| `/settings/:tab?`              | Settings — Appearance is real          |
+- **No `[[wikilinks]]`, mentions, or tags inside block content** — these are
+  explicitly Phase 4 (links/backlinks/graph) and Phase 6 (tags) in the
+  roadmap, confirmed with you before starting this phase
+- **No drag-and-drop block reordering** — move up/down buttons cover
+  reordering without the added complexity of a drag library; not in the
+  Phase 3 roadmap bullets either
+- **No real image upload** — image blocks are URL-based until a backend
+  exists to receive file uploads
+- **Table is intentionally basic** — add row/column only, no merge, resize,
+  or delete
 
 ## Judgment calls worth flagging
 
-- **Native `<dialog>` over `@radix-ui/react-dialog`** for the confirmation
-  dialog — the mobile drawer already proved the pattern (real focus trap,
-  native ESC) in Phase 1, and a plain confirm/cancel box doesn't need
-  Radix's full composability. A richer modal (e.g. a "create page" form)
-  would be the point where pulling in Radix's Dialog becomes worth it.
-- **`@radix-ui/react-dropdown-menu` was added**, unlike the confirm dialog —
-  correct keyboard behavior (arrow keys, typeahead, focus return) for a real
-  menu is a much bigger lift to hand-roll correctly, and this is exactly
-  what Radix (and shadcn/ui) exists to solve.
-- **Opening the delete confirmation from a dropdown item is deferred by one
-  tick** (`setTimeout(..., 0)`) — opening a dialog directly inside a
-  `DropdownMenuItem`'s `onSelect` is a documented Radix gotcha: the menu's
-  own close-and-return-focus logic fights the dialog's own focus trap if
-  both happen in the same tick.
-- Carried over from Phase 1: `src/routes/` instead of a top-level `pages/`
-  (naming collision with `features/pages/`), `react-router@8.3.0` instead of
-  `react-router-dom` (CVE), oxlint instead of ESLint.
+- **Tiptap, one instance per block** — not one big document. This is the
+  standard way to build Notion-style block editors on Tiptap: it lets each
+  block have its own undo scope and made the "block type" system (which is
+  fully custom, not Tiptap nodes) straightforward — Tiptap only owns the
+  _inline_ marks, never the block-level structure.
+- **Content is stored as HTML, not markdown strings** — Tiptap's native
+  format is HTML (`getHTML()`/`content:`); "Markdown support" is satisfied
+  through Tiptap's built-in input rules (typing `**x**` produces real bold),
+  not by round-tripping a custom markdown serializer.
+- **List items skip the hover-action rail** other blocks get — a `<li>`
+  must be a direct child of `<ul>/<ol>`, so an extra wrapper `<div>` for
+  hover controls isn't valid there. List items still fully support
+  creation, deletion, and the slash menu; just not the move-up/down buttons.
+- **A real bug was caught and fixed**: the first draft of autosave cancelled
+  a pending save entirely when you navigated to a different page within the
+  600ms debounce window. Fixed by flushing (persisting immediately) instead
+  of just cancelling — see `useEditorStore.clear()`.
+- Carried over: `src/routes/` naming, `react-router@8.3.0` (CVE), oxlint,
+  native `<dialog>` for the confirm dialog, Radix for the dropdown menu.
 
 ## Next up
 
-**Phase 3 — Editor**: blocks, slash commands, formatting, autosave — the
-part of a page that's currently just an empty-state placeholder.
+**Phase 4 — Knowledge Graph**: `[[wikilinks]]` inside blocks, a backlinks
+panel, and the visual graph view — the two-strands vision (structured pages
+
+- a living graph) actually connecting for the first time.

@@ -5,9 +5,20 @@ import { Link, useNavigate } from "react-router";
 import { PageActionsMenu } from "@/features/pages/components/PageActionsMenu";
 import { getAncestors } from "@/lib/tree";
 import { usePageStore } from "@/stores/usePageStore";
+import { useEditorStore } from "@/stores/useEditorStore";
 import type { Page } from "@/types/entities";
 
 const WORKSPACE_ID = "default";
+
+function SaveStatusIndicator() {
+  const saveStatus = useEditorStore((s) => s.saveStatus);
+  if (saveStatus === "idle") return null;
+  return (
+    <output className="text-text-faint shrink-0 text-xs">
+      {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : "Couldn't save"}
+    </output>
+  );
+}
 
 export function PageHeader({ page }: { page: Page }) {
   const navigate = useNavigate();
@@ -60,6 +71,7 @@ export function PageHeader({ page }: { page: Page }) {
           placeholder="Untitled"
           className="text-foreground focus-visible:bg-accent -mx-1 min-w-0 flex-1 rounded-md bg-transparent px-1 text-2xl font-semibold outline-none"
         />
+        <SaveStatusIndicator />
         <PageActionsMenu
           pageId={page.id}
           pageTitle={page.title}

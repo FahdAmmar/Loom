@@ -1,10 +1,15 @@
-import { useEffect } from "react";
-import { FileQuestion, FileText } from "lucide-react";
+import { lazy, Suspense, useEffect } from "react";
+import { FileQuestion } from "lucide-react";
 import { Link, useParams } from "react-router";
 
 import { EmptyState } from "@/components/EmptyState";
+import { EditorSkeleton } from "@/features/editor/components/EditorSkeleton";
 import { PageHeader } from "@/features/pages/components/PageHeader";
 import { usePageStore } from "@/stores/usePageStore";
+
+const Editor = lazy(() =>
+  import("@/features/editor/components/Editor").then((m) => ({ default: m.Editor })),
+);
 
 export function PageRoute() {
   const { pageId, workspaceId } = useParams();
@@ -39,11 +44,9 @@ export function PageRoute() {
   return (
     <div>
       <PageHeader key={page.id} page={page} />
-      <EmptyState
-        icon={<FileText className="size-5" />}
-        title="The editor isn't built yet"
-        description="Blocks, formatting, and slash commands arrive in Phase 3 — Editor."
-      />
+      <Suspense fallback={<EditorSkeleton />}>
+        <Editor key={page.id} pageId={page.id} />
+      </Suspense>
     </div>
   );
 }
