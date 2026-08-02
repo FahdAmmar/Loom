@@ -1,7 +1,8 @@
 /**
  * Persisted domain entities. Backlinks and graph nodes/edges are
  * deliberately absent here — they are derived views computed from
- * Page + Link at read time, not stored tables. See src/types/graph.ts.
+ * Page + Link at read time, not stored tables. See api/links.ts
+ * (BacklinkResult) and features/graph/computeGraphLayout.ts.
  */
 
 export interface User {

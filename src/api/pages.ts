@@ -55,16 +55,28 @@ export async function renamePage(id: string, title: string): Promise<Page> {
   return updated;
 }
 
-/** Deletes a page and every descendant beneath it, returning the ids removed. */
+/** Deletes a page and every descendant beneath it (plus their blocks and
+ * any links touching them), returning the page ids removed. */
 export async function deletePage(id: string): Promise<string[]> {
   await networkDelay();
   const db = mockDb.read();
   if (!db.pages[id]) throw new ApiError(`No page found with id "${id}".`, 404);
 
-  const idsToRemove = [id, ...getDescendantIds(db.pages, id)];
-  for (const removedId of idsToRemove) {
-    delete db.pages[removedId];
+  const pageIdsToRemove = [id, ...getDescendantIds(db.pages, id)];
+  const pageIdSet = new Set(pageIdsToRemove);
+
+  for (const pageId of pageIdsToRemove) delete db.pages[pageId];
+
+  for (const b of Object.values(db.blocks)) {
+    if (pageIdSet.has(b.pageId)) delete db.blocks[b.id];
   }
+
+  for (const link of Object.values(db.links)) {
+    if (pageIdSet.has(link.sourcePageId) || pageIdSet.has(link.targetPageId)) {
+      delete db.links[link.id];
+    }
+  }
+
   mockDb.write(db);
-  return idsToRemove;
+  return pageIdsToRemove;
 }

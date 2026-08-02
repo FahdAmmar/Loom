@@ -1,5 +1,17 @@
 import type { Block, BlockType } from "@/types/entities";
 
+/** Matches the HTML the pageLink Tiptap node renders/parses (see features/editor/nodes),
+ * regardless of attribute order within the tag. */
+const PAGE_LINK_ID_PATTERN =
+  /<span\b(?=[^>]*\bdata-page-link\b)(?=[^>]*\bdata-page-id="([^"]+)")[^>]*>/g;
+
+/** Every page id referenced by [[wikilink]] chips inside a block's stored HTML. */
+export function extractPageLinkIdsFromHtml(html: string): string[] {
+  const ids: string[] = [];
+  for (const match of html.matchAll(PAGE_LINK_ID_PATTERN)) ids.push(match[1]);
+  return ids;
+}
+
 /** Ordered top-level (or nested, via parentBlockId) blocks for a page. */
 export function getOrderedBlocks(
   blocksById: Record<string, Block>,

@@ -2,6 +2,8 @@ import { create } from "zustand";
 
 import * as blocksApi from "@/api/blocks";
 import type { CreateBlockInput } from "@/api/blocks";
+import * as linksApi from "@/api/links";
+import { extractPageLinkIdsFromHtml } from "@/lib/blocks";
 import type { Block } from "@/types/entities";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -89,13 +91,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       pendingSaves.delete(id);
       blocksApi
         .updateBlock(id, { content })
-        .then((updated) => {
+        .then(async (updated) => {
           // Only merge back if this id is still part of the currently-loaded
           // state — after `clear()` runs (navigating to a different page),
           // it won't be, and merging it in would resurrect stale data into
           // whatever page has since loaded.
           if (get().blocksById[id]) {
             set((s) => ({ blocksById: { ...s.blocksById, [id]: updated } }));
+          }
+          if (typeof content.html === "string") {
+            await linksApi.syncBlockLinks(
+              updated.pageId,
+              id,
+              extractPageLinkIdsFromHtml(content.html),
+            );
           }
           if (pendingSaves.size === 0) set({ saveStatus: "saved" });
         })
@@ -109,11 +118,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   changeBlockType: async (id, type, content) => {
     const previous = get().blocksById[id];
     if (!previous) return;
-    const updated = await blocksApi.updateBlock(id, {
-      type,
-      content: content ?? previous.content,
-    });
+    const nextContent = content ?? previous.content;
+    const updated = await blocksApi.updateBlock(id, { type, content: nextContent });
     set((s) => ({ blocksById: { ...s.blocksById, [id]: updated } }));
+
+    const linkedIds =
+      typeof nextContent.html === "string" ? extractPageLinkIdsFromHtml(nextContent.html) : [];
+    await linksApi.syncBlockLinks(updated.pageId, id, linkedIds);
   },
 
   deleteBlock: async (id) => {

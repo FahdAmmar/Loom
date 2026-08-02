@@ -148,3 +148,19 @@
   border-radius: 4px;
   padding: 0.1em 0.35em;
 }
+
+/* [[wikilink]] chip — Structure Violet is reserved for links/graph elements. */
+.page-link-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  padding: 0.05em 0.4em;
+  background-color: color-mix(in srgb, var(--brand-violet) 15%, transparent);
+  color: var(--brand-violet);
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.page-link-chip:hover {
+  background-color: color-mix(in srgb, var(--brand-violet) 26%, transparent);
+}

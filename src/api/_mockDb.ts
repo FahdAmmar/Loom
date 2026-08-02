@@ -1,4 +1,5 @@
-import type { Block, Page, Workspace } from "@/types/entities";
+import { extractPageLinkIdsFromHtml } from "@/lib/blocks";
+import type { Block, Link, Page, Workspace } from "@/types/entities";
 
 const STORAGE_KEY = "loom-mock-db-v1";
 const DEFAULT_WORKSPACE_ID = "default";
@@ -7,6 +8,7 @@ interface MockDb {
   workspaces: Record<string, Workspace>;
   pages: Record<string, Page>;
   blocks: Record<string, Block>;
+  links: Record<string, Link>;
 }
 
 let blockOrder = 0;
@@ -19,6 +21,11 @@ function block(pageId: string, type: Block["type"], content: Block["content"]): 
     content,
     order: blockOrder++,
   };
+}
+
+/** Matches exactly what the pageLink Tiptap node renders — see features/editor/nodes/pageLinkNode.ts. */
+function pageLinkHtml(page: Page): string {
+  return `<span data-page-link data-page-id="${page.id}" class="page-link-chip">↗ ${page.title}</span>`;
 }
 
 function seedDb(): MockDb {
@@ -78,7 +85,7 @@ function seedDb(): MockDb {
       html: "This page is a <strong>block editor</strong> — every paragraph, heading, and list item below is its own block. Try typing <code>/</code> on a new line to see the command menu.",
     }),
     block(welcome.id, "callout", {
-      html: "Linking pages together with <code>[[double brackets]]</code> and the visual graph arrive in Phase 4 — this phase is just about getting words on the page.",
+      html: `Type <code>[[</code> anywhere to link to another page — try it, or follow the one already here: ${pageLinkHtml(gettingStarted)}.`,
     }),
     block(welcome.id, "heading2", { html: "What you can do here" }),
     block(welcome.id, "bulletList", { html: "Write in paragraphs, headings, and lists" }),
@@ -94,14 +101,41 @@ function seedDb(): MockDb {
       code: "// blocks are plain data — this whole page is an array of these\ninterface Block {\n  type: BlockType;\n  content: Record<string, unknown>;\n}",
       language: "ts",
     }),
+    block(welcome.id, "paragraph", {
+      html: `See also: ${pageLinkHtml(whyTwoIdeas)} and ${pageLinkHtml(ideas)}.`,
+    }),
   ];
 
   blockOrder = 0;
   const gettingStartedBlocks = [
     block(gettingStarted.id, "paragraph", {
-      html: "Click the <strong>+</strong> next to any page in the sidebar to add a sub-page, or the <strong>/</strong> menu here to add a new kind of block.",
+      html: `Click the <strong>+</strong> next to any page in the sidebar to add a sub-page, or the <strong>/</strong> menu here to add a new kind of block. Head back to ${pageLinkHtml(welcome)} any time.`,
     }),
   ];
+
+  blockOrder = 0;
+  const ideasBlocks = [
+    block(ideas.id, "paragraph", {
+      html: `A loose page, not nested under anything — but still linked from ${pageLinkHtml(welcome)}. The graph in Phase 4 draws connections like this one regardless of where a page sits in the tree.`,
+    }),
+  ];
+
+  const allBlocks = [...welcomeBlocks, ...gettingStartedBlocks, ...ideasBlocks];
+
+  const links: Record<string, Link> = {};
+  for (const b of allBlocks) {
+    if (typeof b.content.html !== "string") continue;
+    for (const targetPageId of extractPageLinkIdsFromHtml(b.content.html)) {
+      if (targetPageId === b.pageId) continue; // no self-links
+      const link: Link = {
+        id: `link-${crypto.randomUUID()}`,
+        sourcePageId: b.pageId,
+        targetPageId,
+        sourceBlockId: b.id,
+      };
+      links[link.id] = link;
+    }
+  }
 
   return {
     workspaces: { [workspace.id]: workspace },
@@ -111,9 +145,8 @@ function seedDb(): MockDb {
       [whyTwoIdeas.id]: whyTwoIdeas,
       [ideas.id]: ideas,
     },
-    blocks: Object.fromEntries(
-      [...welcomeBlocks, ...gettingStartedBlocks].map((b) => [b.id, b]),
-    ),
+    blocks: Object.fromEntries(allBlocks.map((b) => [b.id, b])),
+    links,
   };
 }
 
@@ -126,8 +159,9 @@ function readDb(): MockDb {
   }
   try {
     const parsed = JSON.parse(raw) as Partial<MockDb>;
-    // Defensive against the Phase 2 schema, which had no `blocks` table yet.
+    // Defensive against older schemas that predate a table.
     if (!parsed.blocks) parsed.blocks = {};
+    if (!parsed.links) parsed.links = {};
     return parsed as MockDb;
   } catch {
     const seeded = seedDb();

@@ -69,7 +69,13 @@ export async function deleteBlock(id: string): Promise<string[]> {
   if (!db.blocks[id]) throw new ApiError(`No block found with id "${id}".`, 404);
 
   const idsToRemove = [id, ...getDescendantBlockIds(db.blocks, id)];
+  const idSet = new Set(idsToRemove);
+
   for (const removedId of idsToRemove) delete db.blocks[removedId];
+  for (const link of Object.values(db.links)) {
+    if (link.sourceBlockId && idSet.has(link.sourceBlockId)) delete db.links[link.id];
+  }
+
   mockDb.write(db);
   return idsToRemove;
 }

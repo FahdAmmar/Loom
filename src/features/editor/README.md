@@ -24,6 +24,26 @@
   hypothetical one
 - `useEditorStore` fully implemented (was a skeleton through Phase 1–2)
 
-**Still ahead:** `[[wikilinks]]`, mentions, and tags inside blocks (Phase 4
-and 6), real image upload once a backend exists, drag-and-drop reordering,
-richer tables (merge/resize/delete row-col).
+**Still ahead:** mentions and tags inside blocks (Phase 6), real image
+upload once a backend exists, drag-and-drop reordering, richer tables
+(merge/resize/delete row-col).
+
+**Implemented (Phase 4):**
+
+- `nodes/pageLinkNode.ts` — a custom Tiptap atom node for `[[wikilinks]]`.
+  Renders as a clickable chip; round-trips through stored HTML via
+  `data-page-id`. The chip's label is a snapshot of the target page's title
+  _at insertion time_ — renaming a page later doesn't retroactively update
+  chips that already point to it elsewhere. Fixing that needs a NodeView
+  that subscribes to the page store live, which felt like more machinery
+  than this phase warranted
+- Trigger detection reuses the same `onUpdate`-text-inspection technique as
+  the slash menu (not Tiptap's official Suggestion/Mention extensions) —
+  one less API surface to wire up, and `[[` can trigger anywhere in a
+  block's text, not just at the start, unlike `/`
+- Clicking a chip navigates via `editorProps.handleClickOn` — a plain click
+  inside a contentEditable region normally just moves the cursor, so this is
+  the specific hook that intercepts clicks landing on the node itself
+- Link extraction happens against plain stored HTML (`extractPageLinkIdsFromHtml`
+  in `lib/blocks.ts`), not Tiptap's JSON — keeps `useEditorStore`'s save
+  flow decoupled from ProseMirror's document shape entirely
