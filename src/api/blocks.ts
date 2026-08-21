@@ -1,6 +1,7 @@
 import { ApiError } from "@/api/client";
 import { mockDb, networkDelay } from "@/api/_mockDb";
 import { getDescendantBlockIds, getOrderedBlocks } from "@/lib/blocks";
+import { arrayMove } from "@/lib/utils";
 import type { Block, BlockType } from "@/types/entities";
 
 export async function listBlocks(pageId: string): Promise<Block[]> {
@@ -99,4 +100,36 @@ export async function moveBlock(id: string, direction: "up" | "down"): Promise<B
   db.blocks[updatedSwap.id] = updatedSwap;
   mockDb.write(db);
   return [updatedTarget, updatedSwap];
+}
+
+/**
+ * Moves a block to `newIndex` among its current siblings (same page +
+ * parentBlockId) — an arbitrary-distance move, unlike moveBlock's
+ * adjacent-only swap. Built for drag-and-drop, where a block can land
+ * several positions away in one gesture. Returns every sibling whose order
+ * changed, re-normalized to a contiguous 0..n-1 sequence.
+ */
+/**
+ * Moves a block to sit at `targetIndex` — that index measured in the
+ * block's *current* sibling order (same page + parentBlockId), i.e.
+ * exactly the target's raw position a caller already has on hand from a
+ * drag-and-drop drop event. Unlike moveBlock's adjacent-only swap, this can
+ * jump several positions in one call. Returns every sibling whose order
+ * changed, re-normalized to a contiguous 0..n-1 sequence.
+ */
+export async function reorderBlock(id: string, targetIndex: number): Promise<Block[]> {
+  await networkDelay(90);
+  const db = mockDb.read();
+  const target = db.blocks[id];
+  if (!target) throw new ApiError(`No block found with id "${id}".`, 404);
+
+  const siblings = getOrderedBlocks(db.blocks, target.pageId, target.parentBlockId);
+  const oldIndex = siblings.findIndex((b) => b.id === id);
+  if (oldIndex === -1 || oldIndex === targetIndex) return [];
+
+  const reordered = arrayMove(siblings, oldIndex, targetIndex);
+  const updated = reordered.map((block, index) => Object.assign(block, { order: index }));
+  for (const block of updated) db.blocks[block.id] = block;
+  mockDb.write(db);
+  return updated;
 }

@@ -17,6 +17,7 @@ export function DropdownMenuContent({
         sideOffset={sideOffset}
         className={cn(
           "border-border bg-popover text-popover-foreground z-50 min-w-36 overflow-hidden rounded-md border p-1 shadow-md",
+          "data-[state=open]:animate-dropdown-in data-[state=closed]:animate-dropdown-out",
           className,
         )}
         {...props}

@@ -12,6 +12,36 @@ export function extractPageLinkIdsFromHtml(html: string): string[] {
   return ids;
 }
 
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Searchable plain text for a block, regardless of its content shape. */
+export function extractPlainText(block: Block): string {
+  const { content } = block;
+  if (typeof content.html === "string") return stripHtml(content.html);
+  if (typeof content.code === "string") return content.code;
+  if (Array.isArray(content.rows)) {
+    return (content.rows as string[][]).flat().join(" ");
+  }
+  if (typeof content.alt === "string" || typeof content.caption === "string") {
+    return [content.alt, content.caption].filter(Boolean).join(" ");
+  }
+  if (Array.isArray(content.columns)) {
+    const columns = content.columns as { title: string; cards: { title: string }[] }[];
+    const words: string[] = [];
+    for (const col of columns) {
+      words.push(col.title);
+      for (const card of col.cards) words.push(card.title);
+    }
+    return words.join(" ");
+  }
+  return "";
+}
+
 /** Ordered top-level (or nested, via parentBlockId) blocks for a page. */
 export function getOrderedBlocks(
   blocksById: Record<string, Block>,

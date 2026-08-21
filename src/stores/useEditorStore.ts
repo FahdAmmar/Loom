@@ -28,6 +28,8 @@ interface EditorState {
   ) => Promise<void>;
   deleteBlock: (id: string) => Promise<void>;
   moveBlock: (id: string, direction: "up" | "down") => Promise<void>;
+  /** Drag-and-drop reorder within the same parent scope — see api/blocks.ts reorderBlock. */
+  reorderBlock: (id: string, newIndex: number) => Promise<void>;
   toggleExpanded: (blockId: string) => void;
 }
 
@@ -119,6 +121,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const previous = get().blocksById[id];
     if (!previous) return;
     const nextContent = content ?? previous.content;
+
+    // A slash-command conversion supersedes whatever content-only edit is
+    // still debounced from the keystrokes that typed the "/command" text
+    // itself — without cancelling it, that stale save fires ~600ms later
+    // and silently overwrites the new block's content (type stays right,
+    // content reverts), since it only patches `content`, not `type`.
+    const pending = pendingSaves.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pendingSaves.delete(id);
+    }
+
     const updated = await blocksApi.updateBlock(id, { type, content: nextContent });
     set((s) => ({ blocksById: { ...s.blocksById, [id]: updated } }));
 
@@ -138,6 +152,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   moveBlock: async (id, direction) => {
     const updated = await blocksApi.moveBlock(id, direction);
+    set((s) => {
+      const next = { ...s.blocksById };
+      for (const block of updated) next[block.id] = block;
+      return { blocksById: next };
+    });
+  },
+
+  reorderBlock: async (id, newIndex) => {
+    const updated = await blocksApi.reorderBlock(id, newIndex);
     set((s) => {
       const next = { ...s.blocksById };
       for (const block of updated) next[block.id] = block;

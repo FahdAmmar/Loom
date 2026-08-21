@@ -2,6 +2,7 @@ import { Menu, Moon, Search, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useSidebarStore } from "@/stores/useSidebarStore";
+import { useSearchStore } from "@/stores/useSearchStore";
 import { useTheme } from "@/hooks/useTheme";
 
 function BrandMark() {
@@ -23,6 +24,7 @@ function BrandMark() {
 
 export function Topbar() {
   const openMobile = useSidebarStore((s) => s.openMobile);
+  const openCommandPalette = useSearchStore((s) => s.openCommandPalette);
   const { resolvedTheme, setTheme } = useTheme();
 
   return (
@@ -46,16 +48,24 @@ export function Topbar() {
 
       <Button
         variant="outline"
+        size="icon"
+        className="sm:hidden"
+        aria-label="Search"
+        onClick={openCommandPalette}
+      >
+        <Search className="size-3.5" />
+      </Button>
+
+      <Button
+        variant="outline"
         size="sm"
         className="text-muted-foreground hidden gap-2 sm:inline-flex"
-        disabled
-        title="Search and the command palette arrive in Phase 5"
-        aria-disabled="true"
+        onClick={openCommandPalette}
       >
         <Search className="size-3.5" />
         Search
         <kbd className="border-border text-text-faint ml-1 rounded border px-1.5 py-0.5 font-mono text-[10px]">
-          Phase 5
+          ⌘K
         </kbd>
       </Button>
 

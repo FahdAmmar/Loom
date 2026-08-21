@@ -1,7 +1,8 @@
-import { ImageIcon, Pencil } from "lucide-react";
-import { useState } from "react";
+import { ImageIcon, Loader2, Pencil, Upload } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/useToast";
 
 interface ImageBlockViewProps {
   url: string;
@@ -11,6 +12,22 @@ interface ImageBlockViewProps {
   onBackspaceEmpty: () => void;
 }
 
+// Uploaded images are stored as data URIs directly in the block's content —
+// there's no real backend to upload to. localStorage has a shared quota
+// (commonly ~5MB per origin) across every page's content, so this caps a
+// single upload well under that rather than letting one large image eat
+// most of it.
+const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("Couldn't read that file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function ImageBlockView({
   url,
   alt,
@@ -18,24 +35,83 @@ export function ImageBlockView({
   onChange,
   onBackspaceEmpty,
 }: ImageBlockViewProps) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setEditing] = useState(url === "");
+  const [isUploading, setUploading] = useState(false);
   const [draftUrl, setDraftUrl] = useState(url);
   const [draftAlt, setDraftAlt] = useState(alt ?? "");
 
-  function commit() {
-    if (draftUrl.trim()) {
-      onChange({ url: draftUrl.trim(), alt: draftAlt.trim() || undefined, caption });
+  function commit(nextUrl = draftUrl, nextAlt = draftAlt) {
+    if (nextUrl.trim()) {
+      onChange({ url: nextUrl.trim(), alt: nextAlt.trim() || undefined, caption });
       setEditing(false);
+    }
+  }
+
+  async function handleFileSelected(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // lets the same file be picked again after an error
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast("That file isn't an image.", "error");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast(`Images must be under ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)}MB.`, "error");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setDraftUrl(dataUrl);
+      commit(dataUrl, draftAlt || file.name.replace(/\.[^.]+$/, ""));
+    } catch {
+      toast("Couldn't read that file.", "error");
+    } finally {
+      setUploading(false);
     }
   }
 
   if (isEditing) {
     return (
-      <div className="border-border flex flex-col gap-2 rounded-md border border-dashed p-4">
+      <div className="border-border flex flex-col gap-3 rounded-md border border-dashed p-4">
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <ImageIcon className="size-4" />
-          Add an image by URL
+          Add an image
         </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileSelected}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-start"
+          disabled={isUploading}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {isUploading ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Upload className="size-3.5" />
+          )}
+          {isUploading ? "Uploading…" : "Upload a file"}
+        </Button>
+
+        <div className="text-text-faint flex items-center gap-2 text-xs">
+          <div className="border-border h-px flex-1 border-t" />
+          or paste a link
+          <div className="border-border h-px flex-1 border-t" />
+        </div>
+
         <input
           value={draftUrl}
           onChange={(e) => setDraftUrl(e.target.value)}
@@ -53,7 +129,12 @@ export function ImageBlockView({
           placeholder="Alt text (for screen readers)"
           className="border-border focus-visible:border-ring rounded-md border bg-transparent px-2.5 py-1.5 text-sm outline-none"
         />
-        <Button size="sm" className="self-start" onClick={commit} disabled={!draftUrl.trim()}>
+        <Button
+          size="sm"
+          className="self-start"
+          onClick={() => commit()}
+          disabled={!draftUrl.trim()}
+        >
           Add image
         </Button>
       </div>
@@ -65,7 +146,7 @@ export function ImageBlockView({
       <img
         src={url}
         alt={alt ?? ""}
-        className="max-h-[28rem] w-full rounded-md object-contain"
+        className="aspect-video max-h-[28rem] w-full rounded-md object-contain"
       />
       <button
         type="button"

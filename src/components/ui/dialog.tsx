@@ -21,7 +21,7 @@ export function Dialog({ open, onClose, className, children, ...aria }: DialogPr
       onClose={onClose}
       aria-label={aria["aria-label"]}
       className={cn(
-        "border-border bg-card text-card-foreground m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl border p-0 shadow-lg",
+        "dialog-animated border-border bg-card text-card-foreground m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl border p-0 shadow-lg",
         "backdrop:bg-black/40",
         className,
       )}

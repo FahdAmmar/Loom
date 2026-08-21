@@ -9,7 +9,7 @@ import { PageLinkNode } from "@/features/editor/nodes/pageLinkNode";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
 import { cn } from "@/lib/utils";
 import { usePageStore } from "@/stores/usePageStore";
-import type { Page } from "@/types/entities";
+import type { BlockType, Page } from "@/types/entities";
 
 export interface SlashState {
   open: boolean;
@@ -29,6 +29,9 @@ interface BlockTextEditorProps {
   html: string;
   placeholder?: string;
   className?: string;
+  /** Only heading1/2/3 map to anything — everything else renders with no
+   * heading role, same as a plain paragraph. */
+  blockType?: BlockType;
   onChange: (html: string) => void;
   onEnter: () => void;
   onBackspaceEmpty: () => void;
@@ -41,11 +44,26 @@ interface BlockTextEditorProps {
 
 const WORKSPACE_ID = "default";
 
+// Headings here are Tiptap "paragraph" nodes wearing Tailwind classes, not
+// real <h1>-<h6> elements — Heading is disabled in StarterKit.configure
+// below because each block is its own independent Tiptap document with no
+// concept of "this document's h1 vs h2," and the app's own BlockType
+// already carries that meaning. Without something conveying heading
+// semantics, a screen reader has no way to navigate this page by heading
+// at all. `role="heading"` + `aria-level` gets that back without needing
+// to restructure how blocks render.
+const HEADING_LEVELS: Partial<Record<BlockType, number>> = {
+  heading1: 1,
+  heading2: 2,
+  heading3: 3,
+};
+
 export function BlockTextEditor({
   blockId,
   html,
   placeholder,
   className,
+  blockType,
   onChange,
   onEnter,
   onBackspaceEmpty,
@@ -69,6 +87,8 @@ export function BlockTextEditor({
         .slice(0, 8)
     : [];
 
+  const headingLevel = blockType ? HEADING_LEVELS[blockType] : undefined;
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -87,11 +107,17 @@ export function BlockTextEditor({
     editorProps: {
       attributes: {
         class: "outline-none",
-        "aria-label": placeholder ?? "Block content",
+        // aria-label only while empty — once there's real content, no
+        // aria-label at all, so the accessible name comes from the actual
+        // text (aria-label unconditionally set, as this was before, always
+        // wins over text content: a screen reader would hear the
+        // placeholder — "Heading 1" — forever, never the real heading text).
+        ...(isEmpty ? { "aria-label": placeholder ?? "Block content" } : {}),
+        ...(headingLevel ? { role: "heading", "aria-level": String(headingLevel) } : {}),
       },
       handleClickOn: (_view, _pos, node) => {
         if (node.type.name === "pageLink" && typeof node.attrs.pageId === "string") {
-          navigate(`/w/${WORKSPACE_ID}/p/${node.attrs.pageId}`);
+          navigate(`/w/${WORKSPACE_ID}/p/${node.attrs.pageId}`, { viewTransition: true });
           return true;
         }
         return false;
@@ -211,6 +237,24 @@ export function BlockTextEditor({
     if (!editor) return;
     return register(blockId, () => editor.commands.focus("end"));
   }, [editor, blockId, register]);
+
+  // Keeps role/aria-level/aria-label in sync with heading-level changes
+  // (slash-command conversion) and with the empty/non-empty transition,
+  // without recreating the whole editor instance — setOptions patches live
+  // config; a full recreate would drop cursor position and undo history
+  // for no reason.
+  useEffect(() => {
+    if (!editor) return;
+    editor.setOptions({
+      editorProps: {
+        attributes: {
+          class: "outline-none",
+          ...(isEmpty ? { "aria-label": placeholder ?? "Block content" } : {}),
+          ...(headingLevel ? { role: "heading", "aria-level": String(headingLevel) } : {}),
+        },
+      },
+    });
+  }, [editor, headingLevel, placeholder, isEmpty]);
 
   return (
     <div className="relative min-w-0 flex-1">

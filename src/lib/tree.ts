@@ -28,7 +28,33 @@ export function buildPageTree(pagesById: Record<string, Page>): PageTreeNode[] {
   return (childrenByParent.get(null) ?? []).map(toNode);
 }
 
-/** A page's ancestor chain, root first — used for breadcrumbs. */
+export interface FlatPageTreeItem {
+  page: Page;
+  depth: number;
+  hasChildren: boolean;
+}
+
+/**
+ * Flattens a page tree into the ordered list of rows actually on screen —
+ * a collapsed page's children are left out entirely, not just hidden.
+ * Built for drag-and-drop: dnd-kit's sortable list needs one flat array of
+ * ids, and a dragged page's new parent/position both fall out of where it
+ * lands in this list (see api/pages.ts movePage).
+ */
+export function flattenVisibleTree(
+  nodes: PageTreeNode[],
+  collapsedPageIds: Record<string, boolean>,
+  depth = 0,
+): FlatPageTreeItem[] {
+  const result: FlatPageTreeItem[] = [];
+  for (const node of nodes) {
+    result.push({ page: node.page, depth, hasChildren: node.children.length > 0 });
+    if (node.children.length > 0 && !collapsedPageIds[node.page.id]) {
+      result.push(...flattenVisibleTree(node.children, collapsedPageIds, depth + 1));
+    }
+  }
+  return result;
+}
 export function getAncestors(pagesById: Record<string, Page>, pageId: string): Page[] {
   const chain: Page[] = [];
   let current = pagesById[pageId]?.parentId ?? null;

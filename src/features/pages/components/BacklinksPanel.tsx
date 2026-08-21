@@ -41,6 +41,7 @@ export function BacklinksPanel({ pageId }: { pageId: string }) {
         {backlinks.map(({ link, sourcePage }) => (
           <li key={link.id}>
             <Link
+              viewTransition
               to={`/w/${WORKSPACE_ID}/p/${sourcePage.id}`}
               className="text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
             >

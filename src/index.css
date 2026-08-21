@@ -14,7 +14,7 @@
   --card-foreground: #1c1c28;
   --popover: #ffffff;
   --popover-foreground: #1c1c28;
-  --primary: #9c6b23;
+  --primary: #946521; /* darkened from #9c6b23 for 4.5:1 text contrast (WCAG AA) */
   --primary-foreground: #fff8ec;
   --secondary: #efece4;
   --secondary-foreground: #1c1c28;
@@ -22,7 +22,7 @@
   --muted-foreground: #62636f;
   --accent: #faf8f3;
   --accent-foreground: #1c1c28;
-  --destructive: #c94a37;
+  --destructive: #be4533; /* darkened from #c94a37 for 4.5:1 text contrast */
   --destructive-foreground: #fff5f3;
   --border: rgba(20, 20, 30, 0.1);
   --input: rgba(20, 20, 30, 0.16);
@@ -33,8 +33,8 @@
      used sparingly for graph edges, links, and status states. */
   --brand-gold: #9c6b23;
   --brand-violet: #5a46d6;
-  --brand-mint: #1e9c74;
-  --text-faint: #8c8d99;
+  --brand-mint: #187e5e; /* darkened from #1e9c74 for 4.5:1 text contrast (tag chip labels) */
+  --text-faint: #6d6e7b; /* darkened from #8c8d99 — original failed 4.5:1 (2.97:1) */
 }
 
 .dark {
@@ -62,7 +62,7 @@
   --brand-gold: #d9ae68;
   --brand-violet: #8b7ff0;
   --brand-mint: #4fd8a5;
-  --text-faint: #6c6d82;
+  --text-faint: #7b7c91; /* lightened from #6c6d82 — original was 3.65:1, under the 4.5:1 text threshold */
 }
 
 @theme inline {
@@ -163,4 +163,128 @@
 }
 .page-link-chip:hover {
   background-color: color-mix(in srgb, var(--brand-violet) 26%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-toast-in {
+    animation: toast-in 0.22s ease-out;
+  }
+
+  /* Native <dialog> open/close transitions — @starting-style + allow-discrete
+     lets a top-layer element (and its ::backdrop) animate in on open and out
+     on close with zero JS. Applies to ConfirmDialog and CommandPalette. */
+  dialog.dialog-animated {
+    transition:
+      opacity 0.16s ease,
+      transform 0.16s ease,
+      overlay 0.16s ease allow-discrete,
+      display 0.16s ease allow-discrete;
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  dialog.dialog-animated[open] {
+    opacity: 1;
+    transform: scale(1);
+  }
+  @starting-style {
+    dialog.dialog-animated[open] {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+  dialog.dialog-animated::backdrop {
+    transition:
+      opacity 0.16s ease,
+      display 0.16s ease allow-discrete,
+      overlay 0.16s ease allow-discrete;
+    opacity: 0;
+  }
+  dialog.dialog-animated[open]::backdrop {
+    opacity: 1;
+  }
+  @starting-style {
+    dialog.dialog-animated[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
+  /* Mobile sidebar drawer — slides from the left instead of fading+scaling. */
+  dialog.drawer-animated {
+    transition:
+      transform 0.2s ease,
+      overlay 0.2s ease allow-discrete,
+      display 0.2s ease allow-discrete;
+    transform: translateX(-100%);
+  }
+  dialog.drawer-animated[open] {
+    transform: translateX(0);
+  }
+  @starting-style {
+    dialog.drawer-animated[open] {
+      transform: translateX(-100%);
+    }
+  }
+  dialog.drawer-animated::backdrop {
+    transition:
+      opacity 0.2s ease,
+      display 0.2s ease allow-discrete,
+      overlay 0.2s ease allow-discrete;
+    opacity: 0;
+  }
+  dialog.drawer-animated[open]::backdrop {
+    opacity: 1;
+  }
+  @starting-style {
+    dialog.drawer-animated[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
+  /* Radix DropdownMenu — its Presence component already keeps the content
+     mounted for the duration of a running exit animation, so this is all
+     that's needed for both directions. */
+  @keyframes dropdown-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(-2px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  @keyframes dropdown-out {
+    from {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.96) translateY(-2px);
+    }
+  }
+  .animate-dropdown-in {
+    animation: dropdown-in 0.14s ease-out;
+  }
+  .animate-dropdown-out {
+    animation: dropdown-out 0.1s ease-in;
+  }
 }

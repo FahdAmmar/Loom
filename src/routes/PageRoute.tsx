@@ -17,11 +17,18 @@ export function PageRoute() {
   const page = usePageStore((s) => (pageId ? s.pagesById[pageId] : undefined));
   const isLoading = usePageStore((s) => s.isLoading);
   const setCurrentPage = usePageStore((s) => s.setCurrentPage);
+  const recordVisit = usePageStore((s) => s.recordVisit);
 
   useEffect(() => {
     setCurrentPage(pageId ?? null);
     return () => setCurrentPage(null);
   }, [pageId, setCurrentPage]);
+
+  useEffect(() => {
+    if (page) recordVisit(page.id);
+    // Only the page's existence should trigger this, not every store update.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [page?.id]);
 
   if (!page) {
     if (isLoading) return null; // avoid a "not found" flash while pages are still loading
@@ -33,6 +40,7 @@ export function PageRoute() {
         action={
           <Link
             to={`/w/${workspaceId}`}
+            viewTransition
             className="text-primary mt-2 text-sm font-medium hover:underline"
           >
             Back to workspace

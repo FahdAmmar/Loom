@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { MoreHorizontal, Plus, Star, StarOff, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -7,9 +7,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import * as templatesApi from "@/api/templates";
 import { getDescendantIds } from "@/lib/tree";
+import { useToast } from "@/hooks/useToast";
 import { usePageStore } from "@/stores/usePageStore";
 
 const WORKSPACE_ID = "default";
@@ -30,15 +33,23 @@ export function PageActionsMenu({
 }: PageActionsMenuProps) {
   const navigate = useNavigate();
   const pagesById = usePageStore((s) => s.pagesById);
+  const isFavorite = usePageStore((s) => Boolean(s.pagesById[pageId]?.isFavorite));
   const createPage = usePageStore((s) => s.createPage);
   const deletePage = usePageStore((s) => s.deletePage);
+  const toggleFavorite = usePageStore((s) => s.toggleFavorite);
+  const { toast } = useToast();
   const [isConfirmingDelete, setConfirmingDelete] = useState(false);
 
   const descendantCount = getDescendantIds(pagesById, pageId).length;
 
   async function handleAddSubpage() {
     const child = await createPage(WORKSPACE_ID, pageId);
-    navigate(`/w/${WORKSPACE_ID}/p/${child.id}`);
+    navigate(`/w/${WORKSPACE_ID}/p/${child.id}`, { viewTransition: true });
+  }
+
+  async function handleSaveAsTemplate() {
+    await templatesApi.createTemplateFromPage(pageId, WORKSPACE_ID, pageTitle);
+    toast(`Saved "${pageTitle}" as a template`, "success");
   }
 
   function handleDeleteSelect() {
@@ -68,10 +79,19 @@ export function PageActionsMenu({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
+          <DropdownMenuItem onSelect={() => toggleFavorite(pageId)}>
+            {isFavorite ? <StarOff className="size-3.5" /> : <Star className="size-3.5" />}
+            {isFavorite ? "Remove from favorites" : "Add to favorites"}
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={handleAddSubpage}>
             <Plus className="size-3.5" />
             Add subpage
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleSaveAsTemplate}>
+            <Plus className="size-3.5" />
+            Save as template
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={handleDeleteSelect}>
             <Trash2 className="size-3.5" />
             Delete

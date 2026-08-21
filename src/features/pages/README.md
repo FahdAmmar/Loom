@@ -22,5 +22,19 @@ the Tiptap node that renders it — lives in `features/editor/`, since it's
 fundamentally an editing-surface concern; this feature only consumes the
 `Link` records it produces.
 
-**Still ahead:** favoriting and reordering (Phase 6+ — deliberately not
-built yet, see the top-level README's scope notes).
+**Implemented (Phase 6):**
+
+- `PageActionsMenu` gained two more items: favorite toggle and "Save as
+  template" — favoriting also works from the sidebar's tree row for free,
+  since the menu is shared
+- `PageTags` — chips + an inline picker (find-or-create) under the title.
+  Enter selects the first matching suggestion if there is one, otherwise
+  creates a new tag — the picker deliberately stays open after each pick so
+  adding several tags in one sitting doesn't mean reopening it each time
+- `PageProperties` — text/number/date/select/checkbox rows under the tags.
+  "Select" properties share one small preset option list rather than each
+  property defining its own choices — the Phase 0 data model never gave
+  `PageProperty` an options schema, and adding one felt like scope creep for
+  what's meant to be a basic property editor
+
+**Still ahead:** drag-to-reorder pages, per-property custom option lists.

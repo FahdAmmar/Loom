@@ -1,5 +1,7 @@
-import { ArrowDown, ArrowUp, MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ArrowDown, ArrowUp, GripVertical, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { memo, type ReactNode } from "react";
 
 import {
   DropdownMenu,
@@ -8,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { BoardBlockView } from "@/features/editor/components/BoardBlockView";
 import { CodeBlockView } from "@/features/editor/components/CodeBlockView";
 import { DividerView } from "@/features/editor/components/DividerView";
 import { ImageBlockView } from "@/features/editor/components/ImageBlockView";
@@ -18,9 +21,8 @@ import { ToggleBlockView } from "@/features/editor/components/ToggleBlockView";
 import { BlockList } from "@/features/editor/components/BlockList";
 import { useBlockEditingHandlers } from "@/features/editor/useBlockEditingHandlers";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
-import { getOrderedBlocks } from "@/lib/blocks";
 import { useEditorStore } from "@/stores/useEditorStore";
-import type { Block } from "@/types/entities";
+import type { Block, BoardColumn } from "@/types/entities";
 
 interface BlockRowProps {
   block: Block;
@@ -29,12 +31,24 @@ interface BlockRowProps {
   nextBlockId: string | null;
 }
 
-export function BlockRow({ block, pageId, previousBlockId, nextBlockId }: BlockRowProps) {
+export const BlockRow = memo(function BlockRow({
+  block,
+  pageId,
+  previousBlockId,
+  nextBlockId,
+}: BlockRowProps) {
   const createBlock = useEditorStore((s) => s.createBlock);
   const updateBlockContent = useEditorStore((s) => s.updateBlockContent);
   const deleteBlock = useEditorStore((s) => s.deleteBlock);
   const moveBlock = useEditorStore((s) => s.moveBlock);
-  const blocksById = useEditorStore((s) => s.blocksById);
+  // Scoped to a derived boolean rather than the whole blocksById map — Zustand
+  // only re-renders this component when the *answer* changes (a child was
+  // added/removed), not on every keystroke in some unrelated block on the page.
+  const hasChildren = useEditorStore((s) =>
+    block.type === "toggle"
+      ? Object.values(s.blocksById).some((b) => b.parentBlockId === block.id)
+      : false,
+  );
   const collapsedToggleIds = useEditorStore((s) => s.collapsedToggleIds);
   const toggleExpanded = useEditorStore((s) => s.toggleExpanded);
   const { focus } = useEditorFocus();
@@ -47,6 +61,12 @@ export function BlockRow({ block, pageId, previousBlockId, nextBlockId }: BlockR
     setActiveIndex,
     selectSlashCommand,
   } = useBlockEditingHandlers(block, pageId, previousBlockId, nextBlockId);
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: block.id,
+    data: { type: "block" },
+  });
+  const sortableStyle = { transform: CSS.Transform.toString(transform), transition };
 
   async function handleAddChildToToggle() {
     const created = await createBlock({
@@ -118,9 +138,18 @@ export function BlockRow({ block, pageId, previousBlockId, nextBlockId }: BlockR
         />
       );
       break;
+    case "board":
+      content = (
+        <BoardBlockView
+          columns={
+            Array.isArray(block.content.columns) ? (block.content.columns as BoardColumn[]) : []
+          }
+          onChange={(next) => updateBlockContent(block.id, next)}
+        />
+      );
+      break;
     case "toggle": {
       const isExpanded = !collapsedToggleIds[block.id];
-      const hasChildren = getOrderedBlocks(blocksById, pageId, block.id).length > 0;
       content = (
         <ToggleBlockView
           key={`${block.id}-${block.type}`}
@@ -143,8 +172,21 @@ export function BlockRow({ block, pageId, previousBlockId, nextBlockId }: BlockR
   }
 
   return (
-    <div className="group relative -ml-11 flex items-start gap-1 pl-11">
+    <div
+      ref={setNodeRef}
+      style={sortableStyle}
+      className={`group relative -ml-16 flex items-start gap-1 pl-16 ${isDragging ? "opacity-40" : ""}`}
+    >
       <div className="absolute left-0 flex items-center gap-0.5 pt-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label="Drag to reorder"
+          className="text-text-faint hover:bg-secondary hover:text-foreground flex size-6 cursor-grab touch-none items-center justify-center rounded active:cursor-grabbing"
+        >
+          <GripVertical className="size-3.5" />
+        </button>
         <button
           type="button"
           onClick={handlers.onEnter}
@@ -194,4 +236,4 @@ export function BlockRow({ block, pageId, previousBlockId, nextBlockId }: BlockR
       )}
     </div>
   );
-}
+});

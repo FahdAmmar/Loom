@@ -33,6 +33,7 @@ export function TextBlockView({ block, ...handlers }: TextBlockViewProps) {
       html={typeof block.content.html === "string" ? block.content.html : ""}
       placeholder={PLACEHOLDERS[block.type]}
       className={VARIANT_CLASSNAMES[block.type]}
+      blockType={block.type}
       {...handlers}
     />
   );

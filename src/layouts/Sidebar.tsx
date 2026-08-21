@@ -11,7 +11,9 @@ import {
 import { NavLink } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import { FavoritesList } from "@/features/workspace/components/FavoritesList";
 import { PageTree } from "@/features/workspace/components/PageTree";
+import { RecentsList } from "@/features/workspace/components/RecentsList";
 import { useDialogElement } from "@/hooks/useDialogElement";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores/useSidebarStore";
@@ -29,6 +31,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
     <nav className="flex flex-col gap-1 px-2">
       {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
         <NavLink
+          viewTransition
           key={to}
           to={to}
           onClick={onNavigate}
@@ -56,6 +59,7 @@ function SettingsLink({
 }) {
   return (
     <NavLink
+      viewTransition
       to="/settings"
       onClick={onNavigate}
       className={({ isActive }) =>
@@ -75,6 +79,8 @@ function SettingsLink({
 function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto py-3">
+      <FavoritesList onNavigate={onNavigate} />
+      <RecentsList onNavigate={onNavigate} />
       <PageTree onNavigate={onNavigate} />
       <NavList onNavigate={onNavigate} />
     </div>
@@ -134,7 +140,7 @@ export function Sidebar() {
         aria-label="Navigation"
         onClose={closeMobile}
         className={cn(
-          "border-border bg-background m-0 h-dvh max-h-dvh w-64 max-w-none border-0 border-r p-0",
+          "drawer-animated border-border bg-background m-0 h-dvh max-h-dvh w-64 max-w-none border-0 border-r p-0",
           "backdrop:bg-black/40",
           "fixed inset-y-0 left-0 md:hidden",
         )}

@@ -4,6 +4,7 @@ import {
   forceLink,
   forceManyBody,
   forceSimulation,
+  type Simulation,
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
@@ -16,18 +17,11 @@ export interface GraphNodeLayout extends SimulationNodeDatum {
   weight: number;
 }
 
-interface GraphLinkLayout extends SimulationLinkDatum<GraphNodeLayout> {
+export interface GraphLinkLayout extends SimulationLinkDatum<GraphNodeLayout> {
   id: string;
-}
-
-export interface PositionedEdge {
-  id: string;
+  /** Kept alongside the resolved source/target node objects — used before the simulation resolves them. */
   sourceId: string;
   targetId: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
 }
 
 /** Capped so one heavily-linked hub page doesn't dwarf everything else. */
@@ -35,12 +29,24 @@ export function nodeRadius(weight: number): number {
   return Math.min(8 + weight * 2, 26);
 }
 
-export function computeGraphLayout(
+/**
+ * Creates a *live* d3-force simulation — Obsidian's graph is defined by
+ * continuous, interruptible physics (nodes settle, dragging one perturbs
+ * its neighbors), not a frozen snapshot. Caller owns the simulation's
+ * lifecycle (tick subscription, alphaTarget for dragging, .stop() on
+ * cleanup) and must not recreate the node/link arrays — d3 mutates them
+ * in place every tick.
+ */
+export function createGraphSimulation(
   pages: Page[],
   links: Link[],
   width: number,
   height: number,
-): { nodes: GraphNodeLayout[]; edges: PositionedEdge[] } {
+): {
+  simulation: Simulation<GraphNodeLayout, GraphLinkLayout>;
+  nodes: GraphNodeLayout[];
+  edges: GraphLinkLayout[];
+} {
   const degreeByPageId = new Map<string, number>();
   for (const link of links) {
     degreeByPageId.set(link.sourcePageId, (degreeByPageId.get(link.sourcePageId) ?? 0) + 1);
@@ -54,16 +60,20 @@ export function computeGraphLayout(
   }));
 
   const pageIds = new Set(pages.map((p) => p.id));
-  const simLinks: GraphLinkLayout[] = links
+  const edges: GraphLinkLayout[] = links
     .filter((l) => pageIds.has(l.sourcePageId) && pageIds.has(l.targetPageId))
-    .map((l) => ({ id: l.id, source: l.sourcePageId, target: l.targetPageId }));
-
-  if (nodes.length === 0) return { nodes: [], edges: [] };
+    .map((l) => ({
+      id: l.id,
+      sourceId: l.sourcePageId,
+      targetId: l.targetPageId,
+      source: l.sourcePageId,
+      target: l.targetPageId,
+    }));
 
   const simulation = forceSimulation(nodes)
     .force(
       "link",
-      forceLink<GraphNodeLayout, GraphLinkLayout>(simLinks)
+      forceLink<GraphNodeLayout, GraphLinkLayout>(edges)
         .id((d) => d.id)
         .distance(95)
         .strength(0.5),
@@ -73,25 +83,7 @@ export function computeGraphLayout(
     .force(
       "collide",
       forceCollide<GraphNodeLayout>().radius((d) => nodeRadius(d.weight) + 14),
-    )
-    .stop();
+    );
 
-  for (let i = 0; i < 300; i++) simulation.tick();
-
-  const nodeById = new Map(nodes.map((n) => [n.id, n]));
-  const edges: PositionedEdge[] = simLinks.map((l) => {
-    const source = typeof l.source === "object" ? l.source : nodeById.get(l.source as string)!;
-    const target = typeof l.target === "object" ? l.target : nodeById.get(l.target as string)!;
-    return {
-      id: l.id,
-      sourceId: source.id,
-      targetId: target.id,
-      x1: source.x ?? 0,
-      y1: source.y ?? 0,
-      x2: target.x ?? 0,
-      y2: target.y ?? 0,
-    };
-  });
-
-  return { nodes, edges };
+  return { simulation, nodes, edges };
 }

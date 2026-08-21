@@ -12,7 +12,9 @@ export function NotFoundRoute() {
       description="That page doesn't exist in this workspace."
       action={
         <Button asChild size="sm" className="mt-2">
-          <Link to="/w/default">Back to workspace</Link>
+          <Link viewTransition to="/w/default">
+            Back to workspace
+          </Link>
         </Button>
       }
     />

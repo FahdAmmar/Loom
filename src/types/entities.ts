@@ -47,7 +47,8 @@ export type BlockType =
   | "toggle"
   | "divider"
   | "image"
-  | "table";
+  | "table"
+  | "board";
 
 export interface Block {
   id: string;
@@ -57,6 +58,28 @@ export interface Block {
   /** Shape depends on `type`; kept loose on purpose at this layer. */
   content: Record<string, unknown>;
   order: number;
+}
+
+/**
+ * Content shape for a "board" block — a small Kanban view nested inside a
+ * page, e.g. `content: { columns: BoardColumn[] }`. Not a persisted entity
+ * of its own (no separate table): the whole board lives in one block's
+ * `content`, the same way a "table" block's rows do.
+ */
+export interface BoardCard {
+  id: string;
+  title: string;
+  /** A single emoji shown before the title, e.g. "🚀". Optional. */
+  icon?: string;
+}
+
+export interface BoardColumn {
+  id: string;
+  title: string;
+  color: "gold" | "violet" | "mint";
+  /** A single emoji shown before the column title, e.g. "✅". Optional. */
+  icon?: string;
+  cards: BoardCard[];
 }
 
 export interface Tag {

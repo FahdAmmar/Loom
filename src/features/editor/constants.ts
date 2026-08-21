@@ -5,6 +5,7 @@ import {
   Heading2,
   Heading3,
   ImageIcon,
+  KanbanSquare,
   List,
   ListChecks,
   ListOrdered,
@@ -127,6 +128,25 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       rows: [
         ["", ""],
         ["", ""],
+      ],
+    }),
+  },
+  {
+    type: "board",
+    label: "Board",
+    keywords: ["board", "kanban", "todo", "tasks"],
+    icon: KanbanSquare,
+    emptyContent: () => ({
+      columns: [
+        { id: `col-${crypto.randomUUID()}`, title: "To Do", color: "gold", cards: [] },
+        { id: `col-${crypto.randomUUID()}`, title: "Doing", color: "violet", cards: [] },
+        {
+          id: `col-${crypto.randomUUID()}`,
+          title: "Done",
+          color: "mint",
+          icon: "✅",
+          cards: [],
+        },
       ],
     }),
   },
