@@ -1,5 +1,6 @@
 import { ApiError } from "@/api/client";
 import { mockDb, networkDelay } from "@/api/_mockDb";
+import { updateWikilinkTitlesInHtml } from "@/lib/blocks";
 import { getDescendantIds } from "@/lib/tree";
 import type { Page } from "@/types/entities";
 
@@ -45,12 +46,28 @@ export async function renamePage(id: string, title: string): Promise<Page> {
   const existing = db.pages[id];
   if (!existing) throw new ApiError(`No page found with id "${id}".`, 404);
 
-  const updated: Page = {
-    ...existing,
-    title: title.trim() || "Untitled",
-    updatedAt: new Date().toISOString(),
-  };
+  const newTitle = title.trim() || "Untitled";
+  const updated: Page = { ...existing, title: newTitle, updatedAt: new Date().toISOString() };
   db.pages[id] = updated;
+
+  // A wikilink chip's displayed title is a snapshot taken when it was
+  // inserted, not a live lookup — without this, every chip pointing at
+  // this page keeps showing the old title indefinitely after a rename,
+  // even though the link itself (keyed by page id, not title) still
+  // navigates correctly. Rewrite each one in place.
+  for (const link of Object.values(db.links)) {
+    if (link.targetPageId !== id || !link.sourceBlockId) continue;
+    const sourceBlock = db.blocks[link.sourceBlockId];
+    if (!sourceBlock || typeof sourceBlock.content.html !== "string") continue;
+    const nextHtml = updateWikilinkTitlesInHtml(sourceBlock.content.html, id, newTitle);
+    if (nextHtml !== sourceBlock.content.html) {
+      db.blocks[sourceBlock.id] = {
+        ...sourceBlock,
+        content: { ...sourceBlock.content, html: nextHtml },
+      };
+    }
+  }
+
   mockDb.write(db);
   return updated;
 }

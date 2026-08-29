@@ -12,6 +12,36 @@ export function extractPageLinkIdsFromHtml(html: string): string[] {
   return ids;
 }
 
+/**
+ * Rewrites the displayed text of every wikilink chip pointing at `pageId`
+ * to `newTitle`, leaving every other attribute (and every chip pointing
+ * elsewhere) untouched. A chip's title is a snapshot taken at insertion
+ * time, not a live lookup — this is what keeps it in sync when the target
+ * page gets renamed later. Safe against a chip's HTML attribute order
+ * varying (Tiptap's own serialization vs. hand-authored seed HTML don't
+ * necessarily match byte-for-byte) since it reuses the same
+ * order-independent matching as `extractPageLinkIdsFromHtml`. Chips are
+ * Tiptap `atom` nodes — no nested markup ever lives inside one — so a
+ * plain-text replacement between the tags is safe without a full HTML
+ * parser.
+ */
+export function updateWikilinkTitlesInHtml(
+  html: string,
+  pageId: string,
+  newTitle: string,
+): string {
+  const escapedId = pageId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `(<span\\b(?=[^>]*\\bdata-page-link\\b)(?=[^>]*\\bdata-page-id="${escapedId}")[^>]*>)([^<]*)(</span>)`,
+    "g",
+  );
+  return html.replace(
+    pattern,
+    (_match, openTag: string, _oldText: string, closeTag: string) =>
+      `${openTag}↗ ${newTitle}${closeTag}`,
+  );
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, " ")

@@ -86,6 +86,71 @@ describe("renamePage", () => {
   it("throws an ApiError for an unknown page id", async () => {
     await expect(pagesApi.renamePage("nope", "New")).rejects.toBeInstanceOf(ApiError);
   });
+
+  it(
+    "propagates a rename to every wikilink chip pointing at this page " +
+      "(regression: a chip's title is a snapshot taken at insertion time, " +
+      "not a live lookup — the link itself still navigated correctly by id " +
+      "after a rename, but every chip kept showing the old title forever)",
+    async () => {
+      const target = await pagesApi.createPage({
+        workspaceId: WS,
+        parentId: null,
+        title: "Old title",
+      });
+      const source = await pagesApi.createPage({ workspaceId: WS, parentId: null });
+
+      const db = mockDb.read();
+      db.blocks["block-1"] = {
+        id: "block-1",
+        pageId: source.id,
+        parentBlockId: null,
+        type: "paragraph",
+        content: {
+          html: `<p>See <span data-page-link data-page-id="${target.id}" class="page-link-chip">↗ Old title</span></p>`,
+        },
+        order: 0,
+      };
+      db.links["link-1"] = {
+        id: "link-1",
+        sourcePageId: source.id,
+        targetPageId: target.id,
+        sourceBlockId: "block-1",
+      };
+      mockDb.write(db);
+
+      await pagesApi.renamePage(target.id, "New title");
+
+      const html = mockDb.read().blocks["block-1"].content.html;
+      expect(html).toContain("↗ New title");
+      expect(html).not.toContain("Old title");
+    },
+  );
+
+  it("leaves blocks with no link to the renamed page untouched", async () => {
+    const target = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: null,
+      title: "Old title",
+    });
+    const unrelatedPage = await pagesApi.createPage({ workspaceId: WS, parentId: null });
+
+    const db = mockDb.read();
+    const unrelatedHtml = "<p>Nothing to do with the renamed page.</p>";
+    db.blocks["block-2"] = {
+      id: "block-2",
+      pageId: unrelatedPage.id,
+      parentBlockId: null,
+      type: "paragraph",
+      content: { html: unrelatedHtml },
+      order: 0,
+    };
+    mockDb.write(db);
+
+    await pagesApi.renamePage(target.id, "New title");
+
+    expect(mockDb.read().blocks["block-2"].content.html).toBe(unrelatedHtml);
+  });
 });
 
 describe("setFavorite", () => {

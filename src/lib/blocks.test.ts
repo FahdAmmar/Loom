@@ -6,6 +6,7 @@ import {
   getDescendantBlockIds,
   getOrderedBlocks,
   groupIntoRuns,
+  updateWikilinkTitlesInHtml,
 } from "@/lib/blocks";
 import { makeBlock } from "@/test/fixtures";
 
@@ -30,6 +31,65 @@ describe("extractPageLinkIdsFromHtml", () => {
   it("ignores a span with data-page-id but no data-page-link marker", () => {
     const html = '<span data-page-id="page-1">not a real chip</span>';
     expect(extractPageLinkIdsFromHtml(html)).toEqual([]);
+  });
+});
+
+describe("updateWikilinkTitlesInHtml", () => {
+  it("rewrites the displayed title of a matching chip", () => {
+    const html =
+      '<span data-page-link data-page-id="page-1" class="page-link-chip">↗ Old</span>';
+    const result = updateWikilinkTitlesInHtml(html, "page-1", "New");
+    expect(result).toBe(
+      '<span data-page-link data-page-id="page-1" class="page-link-chip">↗ New</span>',
+    );
+  });
+
+  it("leaves chips pointing at a different page untouched", () => {
+    const html =
+      '<span data-page-link data-page-id="page-2" class="page-link-chip">↗ Old</span>';
+    const result = updateWikilinkTitlesInHtml(html, "page-1", "New");
+    expect(result).toBe(html);
+  });
+
+  it("only updates the matching chip when several point at different pages", () => {
+    const html =
+      '<p>See <span data-page-link data-page-id="page-1">↗ Old A</span> and ' +
+      '<span data-page-link data-page-id="page-2">↗ Old B</span></p>';
+    const result = updateWikilinkTitlesInHtml(html, "page-1", "New A");
+    expect(result).toBe(
+      '<p>See <span data-page-link data-page-id="page-1">↗ New A</span> and ' +
+        '<span data-page-link data-page-id="page-2">↗ Old B</span></p>',
+    );
+  });
+
+  it("updates every chip pointing at the same page when there are several", () => {
+    const html =
+      '<span data-page-link data-page-id="page-1">↗ Old</span> and again ' +
+      '<span data-page-link data-page-id="page-1">↗ Old</span>';
+    const result = updateWikilinkTitlesInHtml(html, "page-1", "New");
+    expect(result).toBe(
+      '<span data-page-link data-page-id="page-1">↗ New</span> and again ' +
+        '<span data-page-link data-page-id="page-1">↗ New</span>',
+    );
+  });
+
+  it("works regardless of attribute order", () => {
+    const html =
+      '<span data-page-id="page-1" data-page-link class="page-link-chip">↗ Old</span>';
+    const result = updateWikilinkTitlesInHtml(html, "page-1", "New");
+    expect(result).toContain("↗ New");
+    expect(result).not.toContain("Old");
+  });
+
+  it("returns the html unchanged when there's no matching chip", () => {
+    const html = "<p>No links here.</p>";
+    expect(updateWikilinkTitlesInHtml(html, "page-1", "New")).toBe(html);
+  });
+
+  it("is safe against regex-special characters in the page id", () => {
+    const html = '<span data-page-link data-page-id="page-(1)">↗ Old</span>';
+    const result = updateWikilinkTitlesInHtml(html, "page-(1)", "New");
+    expect(result).toBe('<span data-page-link data-page-id="page-(1)">↗ New</span>');
   });
 });
 

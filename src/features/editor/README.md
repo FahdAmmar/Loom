@@ -33,10 +33,14 @@ upload once a backend exists, drag-and-drop reordering, richer tables
 - `nodes/pageLinkNode.ts` — a custom Tiptap atom node for `[[wikilinks]]`.
   Renders as a clickable chip; round-trips through stored HTML via
   `data-page-id`. The chip's label is a snapshot of the target page's title
-  _at insertion time_ — renaming a page later doesn't retroactively update
-  chips that already point to it elsewhere. Fixing that needs a NodeView
-  that subscribes to the page store live, which felt like more machinery
-  than this phase warranted
+  _at insertion time_, not a live lookup — a `NodeView` that subscribes to
+  the page store would be the "always correct by construction" fix, but
+  that's a bigger structural change than a rename needs. Fixed more simply
+  instead: `api/pages.ts` `renamePage` walks every `Link` whose
+  `targetPageId` is the page being renamed and rewrites that chip's stored
+  text in place (`lib/blocks.ts` `updateWikilinkTitlesInHtml`), so the
+  fully-navigable app never has a stale chip on screen even though the
+  underlying representation still isn't a live reference
 - Trigger detection reuses the same `onUpdate`-text-inspection technique as
   the slash menu (not Tiptap's official Suggestion/Mention extensions) —
   one less API surface to wire up, and `[[` can trigger anywhere in a

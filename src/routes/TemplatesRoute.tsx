@@ -1,24 +1,16 @@
 import { useEffect, useState } from "react";
-import { FileStack, FileText, KanbanSquare, RotateCcw, Trash2 } from "lucide-react";
+import { FileStack, RotateCcw, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import * as backupApi from "@/api/backup";
 import * as templatesApi from "@/api/templates";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
+import { TemplatePreview } from "@/features/templates/components/TemplatePreview";
 import { usePageStore } from "@/stores/usePageStore";
 import type { Template } from "@/types/entities";
 
 const WORKSPACE_ID = "default";
-
-/** A quick visual "what kind of template is this" cue, derived from its
- * blocks rather than a new field on Template — a board-based template
- * (todo/bug-tracker style) reads very differently at a glance from a plain
- * document one, and that difference is worth surfacing as the gallery
- * grows past a handful of entries. */
-function templateIcon(template: Template) {
-  return template.blocks.some((b) => b.type === "board") ? KanbanSquare : FileText;
-}
 
 export function TemplatesRoute() {
   const navigate = useNavigate();
@@ -54,10 +46,13 @@ export function TemplatesRoute() {
 
   if (templates === null) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-10">
-        <div className="flex flex-col gap-3" aria-hidden="true">
-          {[0, 1].map((i) => (
-            <div key={i} className="bg-muted h-16 animate-pulse rounded-lg" />
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <div
+          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+          aria-hidden="true"
+        >
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="bg-muted aspect-4/5 animate-pulse rounded-lg" />
           ))}
         </div>
       </div>
@@ -88,46 +83,45 @@ export function TemplatesRoute() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
+    <div className="mx-auto max-w-4xl px-6 py-10">
       <h1 className="text-xl font-semibold">Templates</h1>
       <p className="text-muted-foreground mt-1 text-sm">
-        Start a new page pre-filled from one of these.
+        Browse and pick one to start a new page pre-filled with it.
       </p>
-      <div className="mt-6 flex flex-col gap-2">
-        {templates.map((template) => {
-          const Icon = templateIcon(template);
-          return (
-            <div
-              key={template.id}
-              className="border-border flex items-center justify-between gap-3 rounded-lg border p-4"
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        {templates.map((template) => (
+          <div key={template.id} className="group relative">
+            <button
+              type="button"
+              onClick={() => handleUse(template.id)}
+              className="focus-visible:ring-ring block w-full rounded-lg text-left focus-visible:ring-2 focus-visible:outline-none"
             >
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md">
-                  <Icon className="size-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{template.name}</p>
-                  <p className="text-text-faint text-xs">
-                    {template.blocks.length} block{template.blocks.length === 1 ? "" : "s"}
-                  </p>
+              <div className="border-border bg-card relative aspect-4/5 overflow-hidden rounded-lg border">
+                <TemplatePreview template={template} />
+                <div className="bg-foreground/0 group-hover:bg-foreground/5 absolute inset-0 flex items-center justify-center transition-colors">
+                  <span className="bg-primary text-primary-foreground rounded-full px-3 py-1 text-xs font-medium opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                    Use template
+                  </span>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Button size="sm" onClick={() => handleUse(template.id)}>
-                  Use template
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Delete template ${template.name}`}
-                  onClick={() => handleDelete(template.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            </div>
-          );
-        })}
+              <p className="mt-2 truncate text-sm font-medium">{template.name}</p>
+              <p className="text-text-faint text-xs">
+                {template.blocks.length} block{template.blocks.length === 1 ? "" : "s"}
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(template.id);
+              }}
+              aria-label={`Delete template ${template.name}`}
+              className="bg-background/90 text-muted-foreground hover:text-destructive absolute top-2 right-2 flex size-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
