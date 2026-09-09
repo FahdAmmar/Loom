@@ -1,406 +1,238 @@
+import { CheckSquare, Megaphone, Square } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
+
 import type { Block, BoardColumn, Template } from "@/types/entities";
 
 /**
- * A schematic thumbnail of a template's actual content — not a static
- * image, but a small SVG rendered from `template.blocks` itself. That
- * means it can never drift out of sync with what "Use template" actually
- * produces, and a template saved later from a real page (PageActionsMenu's
- * "Save as template") gets a correct preview for free, with no image to
- * generate or store anywhere.
+ * A genuine miniature of a template's real content — actual text, actual
+ * table cells, actual board column colors and card titles — rendered at
+ * normal size in an off-screen-width frame and scaled down with CSS
+ * `transform: scale()`, the same technique real template pickers
+ * (PowerPoint, Canva, Notion) use. Not a static image and not an abstract
+ * wireframe: it reuses the real block components' own Tailwind classes
+ * (`TextBlockView`'s heading weights, `BoardBlockView`'s column colors) so
+ * a template actually looks like what "Use template" produces, just small.
  *
- * Uses the app's own CSS custom properties directly (`var(--foreground)`
- * etc.) rather than Tailwind color classes, since those already respond to
- * the `.dark` class the same way the rest of the app does — no separate
- * light/dark handling needed here.
+ * The scale factor is measured live via ResizeObserver rather than
+ * hardcoded, since the card's rendered width varies by grid breakpoint —
+ * a fixed scale would either leave gaps or overflow depending on how many
+ * columns the gallery grid currently has.
  */
 
-const VIEW_WIDTH = 160;
-const VIEW_HEIGHT = 200;
-const PAD_X = 16;
-const CONTENT_WIDTH = VIEW_WIDTH - PAD_X * 2;
-const MAX_Y = VIEW_HEIGHT - 14;
+const REFERENCE_WIDTH = 380;
+
+const HEADING_CLASSES: Partial<Record<Block["type"], string>> = {
+  heading1: "text-2xl font-bold",
+  heading2: "text-xl font-semibold",
+  heading3: "text-lg font-semibold",
+};
+
+const COLUMN_COLOR_CLASSES: Record<BoardColumn["color"], string> = {
+  gold: "bg-brand-gold/15 text-brand-gold",
+  violet: "bg-brand-violet/15 text-brand-violet",
+  mint: "bg-brand-mint/15 text-brand-mint",
+};
 
 type PreviewBlock = Pick<Block, "type" | "content">;
 
-interface RenderResult {
-  height: number;
-  node: React.ReactNode;
+function Html({ html, className }: { html: unknown; className?: string }) {
+  const value = typeof html === "string" && html.trim() ? html : "&nbsp;";
+  // This is the app's own previously-saved content, the same trust level
+  // BlockTextEditor already renders it at live-size with — not third-party
+  // input being displayed unsanitized.
+  return <div className={className} dangerouslySetInnerHTML={{ __html: value }} />;
 }
 
-function headingRow(key: string, y: number, widthFrac: number, weight: number): RenderResult {
-  const h = 6 + weight * 1.5;
-  return {
-    height: h + 8,
-    node: (
-      <rect
-        key={key}
-        x={PAD_X}
-        y={y}
-        width={CONTENT_WIDTH * widthFrac}
-        height={h}
-        rx={2}
-        fill="var(--foreground)"
-        opacity={0.55 + weight * 0.15}
-      />
-    ),
-  };
-}
-
-function paragraphRow(key: string, y: number): RenderResult {
-  return {
-    height: 20,
-    node: (
-      <g key={key}>
-        <rect
-          x={PAD_X}
-          y={y}
-          width={CONTENT_WIDTH}
-          height={4}
-          rx={2}
-          fill="var(--muted-foreground)"
-          opacity={0.4}
-        />
-        <rect
-          x={PAD_X}
-          y={y + 7}
-          width={CONTENT_WIDTH * 0.68}
-          height={4}
-          rx={2}
-          fill="var(--muted-foreground)"
-          opacity={0.4}
-        />
-      </g>
-    ),
-  };
-}
-
-function listRow(key: string, y: number, marker: "bullet" | "number" | "check"): RenderResult {
-  const markerNode =
-    marker === "bullet" ? (
-      <circle cx={PAD_X + 3} cy={y + 4} r={2} fill="var(--muted-foreground)" />
-    ) : marker === "check" ? (
-      <rect
-        x={PAD_X}
-        y={y + 1.5}
-        width={5}
-        height={5}
-        rx={1}
-        fill="none"
-        stroke="var(--muted-foreground)"
-        strokeWidth={1}
-      />
-    ) : (
-      <rect
-        x={PAD_X}
-        y={y + 1.5}
-        width={5}
-        height={5}
-        rx={1}
-        fill="var(--muted-foreground)"
-        opacity={0.3}
-      />
-    );
-  return {
-    height: 11,
-    node: (
-      <g key={key}>
-        {markerNode}
-        <rect
-          x={PAD_X + 10}
-          y={y}
-          width={CONTENT_WIDTH - 10}
-          height={4}
-          rx={2}
-          fill="var(--muted-foreground)"
-          opacity={0.4}
-        />
-      </g>
-    ),
-  };
-}
-
-function quoteRow(key: string, y: number): RenderResult {
-  return {
-    height: 22,
-    node: (
-      <g key={key}>
-        <rect x={PAD_X} y={y} width={2} height={14} fill="var(--brand-violet)" opacity={0.5} />
-        <rect
-          x={PAD_X + 8}
-          y={y + 5}
-          width={CONTENT_WIDTH * 0.6}
-          height={4}
-          rx={2}
-          fill="var(--muted-foreground)"
-          opacity={0.4}
-        />
-      </g>
-    ),
-  };
-}
-
-function calloutRow(key: string, y: number): RenderResult {
-  return {
-    height: 30,
-    node: (
-      <g key={key}>
-        <rect
-          x={PAD_X}
-          y={y}
-          width={CONTENT_WIDTH}
-          height={22}
-          rx={5}
-          fill="var(--brand-gold)"
-          opacity={0.12}
-        />
-        <circle cx={PAD_X + 10} cy={y + 11} r={3.5} fill="var(--brand-gold)" opacity={0.6} />
-        <rect
-          x={PAD_X + 18}
-          y={y + 9}
-          width={CONTENT_WIDTH - 30}
-          height={4}
-          rx={2}
-          fill="var(--brand-gold)"
-          opacity={0.5}
-        />
-      </g>
-    ),
-  };
-}
-
-function codeRow(key: string, y: number): RenderResult {
-  return {
-    height: 34,
-    node: (
-      <g key={key}>
-        <rect
-          x={PAD_X}
-          y={y}
-          width={CONTENT_WIDTH}
-          height={26}
-          rx={4}
-          fill="var(--foreground)"
-          opacity={0.06}
-        />
-        <rect
-          x={PAD_X + 6}
-          y={y + 6}
-          width={CONTENT_WIDTH * 0.5}
-          height={3}
-          rx={1.5}
-          fill="var(--muted-foreground)"
-          opacity={0.45}
-        />
-        <rect
-          x={PAD_X + 6}
-          y={y + 12}
-          width={CONTENT_WIDTH * 0.7}
-          height={3}
-          rx={1.5}
-          fill="var(--muted-foreground)"
-          opacity={0.45}
-        />
-        <rect
-          x={PAD_X + 6}
-          y={y + 18}
-          width={CONTENT_WIDTH * 0.35}
-          height={3}
-          rx={1.5}
-          fill="var(--muted-foreground)"
-          opacity={0.45}
-        />
-      </g>
-    ),
-  };
-}
-
-function dividerRow(key: string, y: number): RenderResult {
-  return {
-    height: 12,
-    node: (
-      <line
-        key={key}
-        x1={PAD_X}
-        x2={PAD_X + CONTENT_WIDTH}
-        y1={y + 3}
-        y2={y + 3}
-        stroke="var(--border)"
-        strokeWidth={1}
-      />
-    ),
-  };
-}
-
-function tableRow(key: string, y: number, content: Record<string, unknown>): RenderResult {
-  const rows = Array.isArray(content.rows) ? (content.rows as unknown[][]) : [[""], [""]];
-  const rowCount = Math.min(rows.length, 3);
-  const colCount = Math.min(Array.isArray(rows[0]) ? rows[0].length : 2, 3);
-  const cellH = 9;
-  const cellW = CONTENT_WIDTH / colCount;
-  const cells = [];
-  for (let r = 0; r < rowCount; r++) {
-    for (let c = 0; c < colCount; c++) {
-      cells.push(
-        <rect
-          key={`${key}-${r}-${c}`}
-          x={PAD_X + c * cellW}
-          y={y + r * cellH}
-          width={cellW}
-          height={cellH}
-          fill={r === 0 ? "var(--muted)" : "none"}
-          stroke="var(--border)"
-          strokeWidth={1}
-        />,
-      );
-    }
-  }
-  return { height: rowCount * cellH + 8, node: <g key={key}>{cells}</g> };
-}
-
-function imageRow(key: string, y: number): RenderResult {
-  return {
-    height: 38,
-    node: (
-      <g key={key}>
-        <rect x={PAD_X} y={y} width={CONTENT_WIDTH} height={30} rx={4} fill="var(--muted)" />
-        <circle
-          cx={PAD_X + 14}
-          cy={y + 11}
-          r={3}
-          fill="var(--muted-foreground)"
-          opacity={0.5}
-        />
-        <path
-          d={`M ${PAD_X + 4} ${y + 25} L ${PAD_X + 18} ${y + 13} L ${PAD_X + 30} ${y + 22} L ${PAD_X + CONTENT_WIDTH - 4} ${y + 10} L ${PAD_X + CONTENT_WIDTH - 4} ${y + 25} Z`}
-          fill="var(--muted-foreground)"
-          opacity={0.35}
-        />
-      </g>
-    ),
-  };
-}
-
-const BOARD_COLORS: Record<BoardColumn["color"], string> = {
-  gold: "var(--brand-gold)",
-  violet: "var(--brand-violet)",
-  mint: "var(--brand-mint)",
-};
-
-function boardRow(key: string, y: number, content: Record<string, unknown>): RenderResult {
-  const columns = Array.isArray(content.columns) ? (content.columns as BoardColumn[]) : [];
-  const shown = columns.slice(0, 3);
-  const gap = 4;
-  const colWidth = (CONTENT_WIDTH - gap * (shown.length - 1)) / Math.max(shown.length, 1);
-  const height = 40;
-  const nodes = shown.map((col, i) => {
-    const x = PAD_X + i * (colWidth + gap);
-    const color = BOARD_COLORS[col.color] ?? "var(--muted-foreground)";
-    return (
-      <g key={`${key}-${col.id}`}>
-        <rect x={x} y={y} width={colWidth} height={height} rx={4} fill={color} opacity={0.1} />
-        <rect
-          x={x + 3}
-          y={y + 3}
-          width={colWidth - 6}
-          height={5}
-          rx={2}
-          fill={color}
-          opacity={0.55}
-        />
-        {col.cards.length > 0 && (
-          <rect
-            x={x + 3}
-            y={y + 12}
-            width={colWidth - 6}
-            height={10}
-            rx={2}
-            fill="var(--card)"
-            stroke="var(--border)"
-            strokeWidth={1}
-          />
-        )}
-      </g>
-    );
-  });
-  return { height: height + 8, node: <g key={key}>{nodes}</g> };
-}
-
-function renderBlock(block: PreviewBlock, index: number, y: number): RenderResult | null {
-  const key = `b-${index}`;
+function renderBlock(block: PreviewBlock, key: number) {
   switch (block.type) {
     case "heading1":
-      return headingRow(key, y, 0.85, 3);
     case "heading2":
-      return headingRow(key, y, 0.7, 2);
     case "heading3":
-      return headingRow(key, y, 0.55, 1);
+      return (
+        <Html key={key} html={block.content.html} className={HEADING_CLASSES[block.type]} />
+      );
+
     case "paragraph":
-      return paragraphRow(key, y);
-    case "bulletList":
-      return listRow(key, y, "bullet");
-    case "numberedList":
-      return listRow(key, y, "number");
-    case "checklist":
-      return listRow(key, y, "check");
+      return <Html key={key} html={block.content.html} className="text-foreground text-sm" />;
+
     case "quote":
-      return quoteRow(key, y);
+      return (
+        <div key={key} className="border-border border-l-2 pl-3">
+          <Html html={block.content.html} className="text-muted-foreground text-sm italic" />
+        </div>
+      );
+
     case "callout":
-      return calloutRow(key, y);
-    case "code":
-      return codeRow(key, y);
+      return (
+        <div key={key} className="bg-muted flex items-start gap-2 rounded-md px-3 py-2">
+          <Megaphone className="text-brand-gold mt-0.5 size-4 shrink-0" />
+          <Html html={block.content.html} className="text-sm" />
+        </div>
+      );
+
+    case "bulletList":
+      return (
+        <div key={key} className="flex items-start gap-2 pl-1 text-sm">
+          <span className="bg-text-faint mt-2 size-1.5 shrink-0 rounded-full" />
+          <Html html={block.content.html} />
+        </div>
+      );
+
+    case "numberedList":
+      return (
+        <div key={key} className="flex items-start gap-2 pl-1 text-sm">
+          <span className="text-text-faint">•</span>
+          <Html html={block.content.html} />
+        </div>
+      );
+
+    case "checklist": {
+      const checked = Boolean(block.content.checked);
+      const Icon = checked ? CheckSquare : Square;
+      return (
+        <div key={key} className="flex items-start gap-2 pl-1 text-sm">
+          <Icon
+            className={`mt-0.5 size-3.5 shrink-0 ${checked ? "text-brand-mint" : "text-text-faint"}`}
+          />
+          <Html
+            html={block.content.html}
+            className={checked ? "text-muted-foreground line-through" : undefined}
+          />
+        </div>
+      );
+    }
+
+    case "code": {
+      const code = typeof block.content.code === "string" ? block.content.code : "";
+      return (
+        <pre
+          key={key}
+          className="bg-muted overflow-hidden rounded-md p-2.5 font-mono text-xs whitespace-pre-wrap"
+        >
+          {code}
+        </pre>
+      );
+    }
+
     case "divider":
-      return dividerRow(key, y);
-    case "table":
-      return tableRow(key, y, block.content);
-    case "image":
-      return imageRow(key, y);
-    case "board":
-      return boardRow(key, y, block.content);
+      return <hr key={key} className="border-border" />;
+
+    case "table": {
+      const rows = Array.isArray(block.content.rows) ? (block.content.rows as string[][]) : [];
+      return (
+        <table key={key} className="border-border w-full border-collapse text-xs">
+          <tbody>
+            {rows.map((row, r) => (
+              // Index keys are safe here: this is a static, decorative,
+              // never-reordered read-only preview — not a list a user
+              // adds to, removes from, or drags — content alone isn't
+              // guaranteed unique (templates commonly have several blank
+              // cells in one row).
+              // oxlint-disable-next-line react/no-array-index-key
+              <tr key={r}>
+                {row.map((cell, c) => (
+                  <td
+                    // oxlint-disable-next-line react/no-array-index-key
+                    key={c}
+                    className={`border-border truncate border px-2 py-1 ${r === 0 ? "bg-muted font-medium" : ""}`}
+                  >
+                    {cell || "\u00A0"}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
+    }
+
+    case "image": {
+      const url = typeof block.content.url === "string" ? block.content.url : "";
+      const alt = typeof block.content.alt === "string" ? block.content.alt : "";
+      return url ? (
+        <img
+          key={key}
+          src={url}
+          alt={alt}
+          className="max-h-32 w-full rounded-md object-cover"
+        />
+      ) : null;
+    }
+
+    case "board": {
+      const columns = Array.isArray(block.content.columns)
+        ? (block.content.columns as BoardColumn[])
+        : [];
+      return (
+        <div key={key} className="flex gap-2">
+          {columns.slice(0, 3).map((col) => (
+            <div key={col.id} className="bg-muted min-w-0 flex-1 rounded-md p-1.5">
+              <div
+                className={`truncate rounded px-1.5 py-0.5 text-xs font-semibold ${COLUMN_COLOR_CLASSES[col.color]}`}
+              >
+                {col.icon ? `${col.icon} ` : ""}
+                {col.title}
+              </div>
+              {col.cards.slice(0, 2).map((card) => (
+                <div
+                  key={card.id}
+                  className="border-border bg-card mt-1 truncate rounded border px-1.5 py-1 text-[10px]"
+                >
+                  {card.icon ? `${card.icon} ` : ""}
+                  {card.title || "Untitled card"}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     case "toggle":
-      return headingRow(key, y, 0.5, 0);
+      return <Html key={key} html={block.content.html} className="text-sm font-medium" />;
+
     default:
       return null;
   }
 }
 
 export function TemplatePreview({ template }: { template: Template }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function updateScale() {
+      if (!container) return;
+      setScale(container.offsetWidth / REFERENCE_WIDTH);
+    }
+    updateScale();
+
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
   const blocks = [...template.blocks].sort((a, b) => a.order - b.order);
 
-  const nodes: React.ReactNode[] = [];
-  let y = 16;
-  let truncated = false;
-  for (let i = 0; i < blocks.length; i++) {
-    const result = renderBlock(blocks[i], i, y);
-    if (!result) continue;
-    if (y + result.height > MAX_Y) {
-      truncated = true;
-      break;
-    }
-    nodes.push(result.node);
-    y += result.height;
-  }
-
   return (
-    <svg viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`} className="h-full w-full">
-      <title>{`Preview of ${template.name}`}</title>
-      {nodes}
-      {truncated && (
-        <defs>
-          <linearGradient id={`fade-${template.id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--card)" stopOpacity="0" />
-            <stop offset="1" stopColor="var(--card)" stopOpacity="1" />
-          </linearGradient>
-        </defs>
-      )}
-      {truncated && (
-        <rect
-          x={0}
-          y={VIEW_HEIGHT - 28}
-          width={VIEW_WIDTH}
-          height={28}
-          fill={`url(#fade-${template.id})`}
-        />
-      )}
-    </svg>
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden">
+      <div
+        ref={contentRef}
+        aria-hidden="true"
+        className="pointer-events-none flex flex-col gap-2.5 p-3 select-none"
+        style={{
+          width: REFERENCE_WIDTH,
+          transform: scale ? `scale(${scale})` : undefined,
+          transformOrigin: "top left",
+          visibility: scale ? "visible" : "hidden",
+        }}
+      >
+        {blocks.map((block, i) => renderBlock(block, i))}
+      </div>
+    </div>
   );
 }

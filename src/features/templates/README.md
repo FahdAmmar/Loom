@@ -23,18 +23,27 @@ within a single block).
 
 **Implemented (later addition): visual gallery, replacing the plain
 name-and-icon list.** `TemplatePreview` (new,
-`features/templates/components/`) renders a small schematic SVG thumbnail
-of a template's actual `blocks` — a bold bar for a heading, a tiny grid for
-a table, three colored columns for a board, and so on — not a static image
-saved anywhere. That means it can never drift out of sync with what "Use
-template" actually produces, and a template saved later from a real page
-(`PageActionsMenu`'s "Save as template") gets a correct preview for free
-with no image to generate or store. Uses the app's CSS custom properties
-directly (`var(--foreground)`, `var(--brand-gold)`, etc.) so it follows
-dark mode the same way the rest of the app does, with no separate
-light/dark handling of its own. Truncates with a fade at the bottom rather
-than overflowing once a template has more blocks than the thumbnail has
-room for.
+`features/templates/components/`) renders a genuine miniature of a
+template's actual content — real text, real table cells, real board column
+colors and card titles — not a static image saved anywhere, and (after an
+initial version) not an abstract wireframe of bars and lines either. It
+reuses the real block components' own styling (`TextBlockView`'s heading
+weights, `BoardBlockView`'s column colors) and renders the actual saved
+HTML at normal size inside a fixed-width (`380px`) off-screen frame, then
+scales that whole frame down with CSS `transform: scale()` — the same
+technique real template pickers (PowerPoint, Canva, Notion) use, rather
+than drawing a simplified stand-in. The scale factor is measured live via
+`ResizeObserver` against the card's actual rendered width rather than
+hardcoded, since the gallery grid's column count (and so each card's width)
+changes at every breakpoint; a fixed scale would leave gaps at some widths
+and overflow at others. Because it's the real content, not a rendering of
+it, this can never drift out of sync with what "Use template" actually
+produces, and a template saved later from a real page (`PageActionsMenu`'s
+"Save as template") gets a correct preview for free with no image to
+generate or store. The preview is marked `aria-hidden` — the card
+button's own visible template name already gives it a correct accessible
+name, and a screen reader stepping through a mini table/board/checklist a
+second time inside the same button would be noise, not information.
 
 `TemplatesRoute` is now a responsive grid of cards instead of a vertical
 list. The whole card is a button (click anywhere to use the template, not
