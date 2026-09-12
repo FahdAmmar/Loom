@@ -1,5 +1,7 @@
+import Fuse from "fuse.js";
+
 import { mockDb, networkDelay } from "@/api/_mockDb";
-import { extractPlainText } from "@/lib/blocks";
+import { buildSnippet, extractPlainText } from "@/lib/blocks";
 import type { Page } from "@/types/entities";
 
 export interface SearchResult {
@@ -9,44 +11,67 @@ export interface SearchResult {
   snippet?: string;
 }
 
-function buildSnippet(text: string, matchIndex: number, matchLength: number): string {
-  const radius = 40;
-  const start = Math.max(0, matchIndex - radius);
-  const end = Math.min(text.length, matchIndex + matchLength + radius);
-  const prefix = start > 0 ? "…" : "";
-  const suffix = end < text.length ? "…" : "";
-  return `${prefix}${text.slice(start, end).trim()}${suffix}`;
+const FUSE_OPTIONS = {
+  includeScore: true,
+  includeMatches: true,
+  threshold: 0.35, // 0 = exact match only, 1 = match anything — 0.35 tolerates a typo or two
+  minMatchCharLength: 2,
+} as const;
+
+interface TitleDoc {
+  page: Pick<Page, "id" | "title" | "icon">;
+  title: string;
+}
+
+interface ContentDoc {
+  page: Pick<Page, "id" | "title" | "icon">;
+  text: string;
 }
 
 export async function search(query: string): Promise<SearchResult[]> {
   await networkDelay(150);
-  const trimmed = query.trim().toLowerCase();
+  const trimmed = query.trim();
   if (!trimmed) return [];
 
   const db = mockDb.read();
   const results: SearchResult[] = [];
+  const matchedPageIds = new Set<string>();
 
-  for (const page of Object.values(db.pages)) {
-    const pageRef = { id: page.id, title: page.title, icon: page.icon };
+  // Title matches rank highest and are checked first — a page whose title
+  // matches is shown once, without also scanning its content.
+  const titleDocs: TitleDoc[] = Object.values(db.pages).map((page) => ({
+    page: { id: page.id, title: page.title, icon: page.icon },
+    title: page.title,
+  }));
+  const titleFuse = new Fuse(titleDocs, { ...FUSE_OPTIONS, keys: ["title"] });
+  for (const result of titleFuse.search(trimmed)) {
+    matchedPageIds.add(result.item.page.id);
+    results.push({ page: result.item.page, matchType: "title" });
+  }
 
-    if (page.title.toLowerCase().includes(trimmed)) {
-      results.push({ page: pageRef, matchType: "title" });
-      continue; // a title match is enough — don't also scan its blocks
+  // Content matches: one search across every block, then keep only the
+  // best-scoring block per page (Fuse results are already score-sorted).
+  const contentDocs: ContentDoc[] = [];
+  for (const block of Object.values(db.blocks)) {
+    const page = db.pages[block.pageId];
+    if (!page || matchedPageIds.has(page.id)) continue;
+    const text = extractPlainText(block);
+    if (text) {
+      contentDocs.push({ page: { id: page.id, title: page.title, icon: page.icon }, text });
     }
+  }
+  const contentFuse = new Fuse(contentDocs, { ...FUSE_OPTIONS, keys: ["text"] });
+  for (const result of contentFuse.search(trimmed)) {
+    if (matchedPageIds.has(result.item.page.id)) continue; // already have this page's best match
+    matchedPageIds.add(result.item.page.id);
 
-    const pageBlocks = Object.values(db.blocks).filter((b) => b.pageId === page.id);
-    for (const block of pageBlocks) {
-      const text = extractPlainText(block);
-      const matchIndex = text.toLowerCase().indexOf(trimmed);
-      if (matchIndex !== -1) {
-        results.push({
-          page: pageRef,
-          matchType: "content",
-          snippet: buildSnippet(text, matchIndex, trimmed.length),
-        });
-        break; // one hit per page is enough for a results list
-      }
-    }
+    const textMatch = result.matches?.find((m) => m.key === "text");
+    const [start, end] = textMatch?.indices[0] ?? [0, trimmed.length - 1];
+    results.push({
+      page: result.item.page,
+      matchType: "content",
+      snippet: buildSnippet(result.item.text, start, end - start + 1),
+    });
   }
 
   return results.slice(0, 20);

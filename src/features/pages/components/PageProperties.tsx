@@ -18,7 +18,7 @@ const PROPERTY_TYPES: { value: PagePropertyType; label: string }[] = [
 // letting each property define its own choices.
 const SELECT_PRESET_OPTIONS = ["Not started", "In progress", "Published", "Archived"];
 
-function PropertyValueInput({
+export function PropertyValueInput({
   property,
   onChange,
 }: {

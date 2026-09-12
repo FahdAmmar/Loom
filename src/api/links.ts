@@ -1,10 +1,27 @@
 import { mockDb, networkDelay } from "@/api/_mockDb";
+import {
+  buildSnippet,
+  extractPageLinkIdsFromHtml,
+  extractPlainText,
+  insertWikilinkForMention,
+} from "@/lib/blocks";
 import type { Link, Page } from "@/types/entities";
 
 export interface BacklinkResult {
   link: Link;
   sourcePage: Pick<Page, "id" | "title" | "icon">;
 }
+
+export interface UnlinkedMentionResult {
+  sourcePage: Pick<Page, "id" | "title" | "icon">;
+  sourceBlockId: string;
+  snippet: string;
+}
+
+/** Titles shorter than this are too generic to search for as plain text —
+ * matching e.g. a two-letter page title against every block in the
+ * workspace would surface mostly noise. */
+const MIN_MENTIONABLE_TITLE_LENGTH = 3;
 
 /**
  * Reconciles the Link table for one block: delete-then-recreate is simpler
@@ -60,4 +77,70 @@ export async function getBacklinks(pageId: string): Promise<BacklinkResult[]> {
 export async function listAllLinks(): Promise<Link[]> {
   await networkDelay();
   return Object.values(mockDb.read().links);
+}
+
+/**
+ * Pages that mention this page's title as plain text without an actual
+ * [[link]] to it — one snippet per page, from its first matching block. A
+ * page that already links here anywhere is excluded entirely, even if it
+ * also happens to mention the title again in plain text elsewhere.
+ */
+export async function getUnlinkedMentions(pageId: string): Promise<UnlinkedMentionResult[]> {
+  await networkDelay();
+  const db = mockDb.read();
+  const targetPage = db.pages[pageId];
+  if (!targetPage) return [];
+
+  const needle = targetPage.title.trim().toLowerCase();
+  if (needle.length < MIN_MENTIONABLE_TITLE_LENGTH) return [];
+
+  const alreadyLinkedFrom = new Set(
+    Object.values(db.links)
+      .filter((link) => link.targetPageId === pageId)
+      .map((link) => link.sourcePageId),
+  );
+
+  const results: UnlinkedMentionResult[] = [];
+  for (const page of Object.values(db.pages)) {
+    if (page.id === pageId || alreadyLinkedFrom.has(page.id)) continue;
+
+    const pageBlocks = Object.values(db.blocks)
+      .filter((b) => b.pageId === page.id)
+      .sort((a, b) => a.order - b.order);
+
+    for (const block of pageBlocks) {
+      const text = extractPlainText(block);
+      const matchIndex = text.toLowerCase().indexOf(needle);
+      if (matchIndex === -1) continue;
+      results.push({
+        sourcePage: { id: page.id, title: page.title, icon: page.icon },
+        sourceBlockId: block.id,
+        snippet: buildSnippet(text, matchIndex, needle.length),
+      });
+      break; // one mention per page is enough to surface it
+    }
+  }
+
+  return results;
+}
+
+/** Converts one unlinked mention into a real [[wikilink]] chip and syncs
+ * the Link table — the "Link" button in the Unlinked Mentions panel. */
+export async function linkifyMention(
+  sourceBlockId: string,
+  targetPageId: string,
+): Promise<void> {
+  await networkDelay(90);
+  const db = mockDb.read();
+  const block = db.blocks[sourceBlockId];
+  const targetPage = db.pages[targetPageId];
+  if (!block || !targetPage || typeof block.content.html !== "string") return;
+
+  const nextHtml = insertWikilinkForMention(block.content.html, targetPageId, targetPage.title);
+  if (nextHtml === null) return; // mention was edited away since the panel loaded
+
+  db.blocks[sourceBlockId] = { ...block, content: { ...block.content, html: nextHtml } };
+  mockDb.write(db);
+
+  await syncBlockLinks(block.pageId, sourceBlockId, extractPageLinkIdsFromHtml(nextHtml));
 }

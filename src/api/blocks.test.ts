@@ -1,13 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/api/client";
 import * as blocksApi from "@/api/blocks";
 
 const PAGE_ID = "test-page";
-
-beforeEach(() => {
-  localStorage.clear();
-});
 
 describe("createBlock", () => {
   it("appends a block at order 0 on an empty page", async () => {

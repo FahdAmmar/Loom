@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreHorizontal, Plus, Star, StarOff, Trash2 } from "lucide-react";
+import { FileDown, History, MoreHorizontal, Plus, Star, StarOff, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -10,7 +10,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import * as blocksApi from "@/api/blocks";
 import * as templatesApi from "@/api/templates";
+import { pageToMarkdown } from "@/features/markdown/exportMarkdown";
+import { VersionHistoryDialog } from "@/features/pages/components/VersionHistoryDialog";
+import { downloadTextFile, slugify } from "@/lib/downloadFile";
 import { getDescendantIds } from "@/lib/tree";
 import { useToast } from "@/hooks/useToast";
 import { usePageStore } from "@/stores/usePageStore";
@@ -39,6 +43,7 @@ export function PageActionsMenu({
   const toggleFavorite = usePageStore((s) => s.toggleFavorite);
   const { toast } = useToast();
   const [isConfirmingDelete, setConfirmingDelete] = useState(false);
+  const [isHistoryOpen, setHistoryOpen] = useState(false);
 
   const descendantCount = getDescendantIds(pagesById, pageId).length;
 
@@ -52,12 +57,26 @@ export function PageActionsMenu({
     toast(`Saved "${pageTitle}" as a template`, "success");
   }
 
+  async function handleExportMarkdown() {
+    const blocks = await blocksApi.listBlocks(pageId);
+    downloadTextFile(
+      `${slugify(pageTitle)}.md`,
+      pageToMarkdown(pageTitle, pageId, blocks),
+      "text/markdown",
+    );
+    toast(`Exported "${pageTitle}" as Markdown`, "success");
+  }
+
   function handleDeleteSelect() {
     // Radix returns focus to the menu trigger when it closes; opening the
     // dialog in the very same tick fights that focus-return. Deferring one
     // tick lets the menu finish closing first — the standard workaround for
     // "open a dialog from a menu item."
     setTimeout(() => setConfirmingDelete(true), 0);
+  }
+
+  function handleHistorySelect() {
+    setTimeout(() => setHistoryOpen(true), 0);
   }
 
   async function handleConfirmDelete() {
@@ -91,6 +110,14 @@ export function PageActionsMenu({
             <Plus className="size-3.5" />
             Save as template
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleExportMarkdown}>
+            <FileDown className="size-3.5" />
+            Export as Markdown
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleHistorySelect}>
+            <History className="size-3.5" />
+            Version history
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={handleDeleteSelect}>
             <Trash2 className="size-3.5" />
@@ -111,6 +138,12 @@ export function PageActionsMenu({
         variant="destructive"
         onConfirm={handleConfirmDelete}
         onCancel={() => setConfirmingDelete(false)}
+      />
+
+      <VersionHistoryDialog
+        pageId={pageId}
+        open={isHistoryOpen}
+        onClose={() => setHistoryOpen(false)}
       />
     </>
   );

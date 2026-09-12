@@ -72,6 +72,143 @@ export function extractPlainText(block: Block): string {
   return "";
 }
 
+/** Short excerpt around a match, with an ellipsis on whichever side got cut off. */
+export function buildSnippet(text: string, matchIndex: number, matchLength: number): string {
+  const radius = 40;
+  const start = Math.max(0, matchIndex - radius);
+  const end = Math.min(text.length, matchIndex + matchLength + radius);
+  const prefix = start > 0 ? "…" : "";
+  const suffix = end < text.length ? "…" : "";
+  return `${prefix}${text.slice(start, end).trim()}${suffix}`;
+}
+
+/**
+ * Rewrites the first plain-text occurrence of `targetTitle` inside `html`
+ * into a real [[wikilink]] chip pointing at `targetPageId` — the "Link"
+ * action behind the Unlinked Mentions panel. Returns `null` if no match is
+ * found (the mention may have been edited away since it was detected).
+ *
+ * Walks the HTML as a real DOM tree rather than string-matching it
+ * directly, so a match that happens to span a tag boundary (e.g. across
+ * bold/italic marks) is handled correctly, and an existing chip's own
+ * label text is never re-linked. This module only ever runs in a browser
+ * or jsdom (never Node/SSR), so `document` is always available. Matching
+ * is a case-insensitive substring, the same trade-off `api/search.ts`
+ * already makes — not a whole-word match, so a title that's a substring of
+ * an unrelated word can also match.
+ */
+export function insertWikilinkForMention(
+  html: string,
+  targetPageId: string,
+  targetTitle: string,
+): string | null {
+  const needle = targetTitle.trim().toLowerCase();
+  if (!needle) return null;
+
+  const container = document.createElement("div");
+  container.innerHTML = html;
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let match: { node: Text; index: number } | null = null;
+  for (
+    let node = walker.nextNode() as Text | null;
+    node;
+    node = walker.nextNode() as Text | null
+  ) {
+    if (node.parentElement?.closest("[data-page-link]")) continue; // never re-link a chip's own label
+    const index = node.data.toLowerCase().indexOf(needle);
+    if (index !== -1) {
+      match = { node, index };
+      break;
+    }
+  }
+  if (!match) return null;
+
+  const matchedNode = match.node.splitText(match.index);
+  matchedNode.splitText(needle.length);
+  const chip = document.createElement("span");
+  chip.setAttribute("data-page-link", "");
+  chip.setAttribute("data-page-id", targetPageId);
+  chip.className = "page-link-chip";
+  chip.textContent = `↗ ${targetTitle}`;
+  matchedNode.replaceWith(chip);
+
+  return container.innerHTML;
+}
+
+/**
+ * Detects a `[[` or `@` mention trigger ending at the cursor, given the
+ * text before it in the current block. `[[` is the primary trigger; `@`
+ * is a shorter alias for the exact same insert-a-page-link flow, only
+ * recognized at a word boundary (start of text or right after
+ * whitespace) so it doesn't fire mid-word or inside an email address.
+ * Returns the query typed after the trigger and how many characters
+ * (trigger included) to delete once a page is picked — or `null` if
+ * neither trigger is currently active.
+ */
+export function detectMentionTrigger(
+  textBeforeCursor: string,
+): { query: string; length: number } | null {
+  const wikilinkMatch = /\[\[([^[\]]*)$/.exec(textBeforeCursor);
+  if (wikilinkMatch) return { query: wikilinkMatch[1], length: wikilinkMatch[0].length };
+
+  const atMatch = /(?:^|\s)(@[^\s@]*)$/.exec(textBeforeCursor);
+  if (atMatch) return { query: atMatch[1].slice(1), length: atMatch[1].length };
+
+  return null;
+}
+
+function domNodeToMarkdown(node: ChildNode): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+  if (node.nodeType !== Node.ELEMENT_NODE) return "";
+
+  const el = node as HTMLElement;
+  if (el.hasAttribute("data-page-link")) {
+    // Obsidian-style plain-text wikilink — the "↗ " prefix is Loom's own
+    // chip label styling, not part of the title.
+    return `[[${(el.textContent ?? "").replace(/^↗\s*/, "")}]]`;
+  }
+
+  const inner = Array.from(el.childNodes).map(domNodeToMarkdown).join("");
+  switch (el.tagName) {
+    case "STRONG":
+    case "B":
+      return `**${inner}**`;
+    case "EM":
+    case "I":
+      return `*${inner}*`;
+    case "CODE":
+      return `\`${inner}\``;
+    case "S":
+    case "STRIKE":
+    case "DEL":
+      return `~~${inner}~~`;
+    case "U":
+      // No native Markdown syntax for underline — raw HTML is the
+      // standard fallback, and every Markdown renderer worth the name
+      // (GitHub, Obsidian, ...) passes inline HTML through untouched.
+      return `<u>${inner}</u>`;
+    case "BR":
+      return "\n";
+    default:
+      return inner;
+  }
+}
+
+/**
+ * Converts a block's rich-text HTML (the shape Tiptap produces — bold,
+ * italic, code, strikethrough, underline, and wikilink chips) into inline
+ * Markdown, for exporting a page. Walks a real DOM tree rather than
+ * regex-replacing tags, the same approach `insertWikilinkForMention`
+ * already uses, so nested marks (bold *and* italic together) come out
+ * correctly instead of needing a combinatorial set of regexes.
+ */
+export function inlineHtmlToMarkdown(html: string): string {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  return Array.from(container.childNodes).map(domNodeToMarkdown).join("").trim();
+}
+
 /** Ordered top-level (or nested, via parentBlockId) blocks for a page. */
 export function getOrderedBlocks(
   blocksById: Record<string, Block>,

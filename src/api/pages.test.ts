@@ -1,17 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/api/client";
 import { mockDb } from "@/api/_mockDb";
 import * as pagesApi from "@/api/pages";
 
 // A workspace id distinct from "default" so these tests are fully isolated
-// from the app's built-in demo content, which auto-seeds the first time
-// localStorage is read.
+// from the app's built-in demo content, which every fresh database seeds.
 const WS = "test-workspace";
-
-beforeEach(() => {
-  localStorage.clear();
-});
 
 describe("createPage", () => {
   it("creates a page with the given title", async () => {

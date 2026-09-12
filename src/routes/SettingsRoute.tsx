@@ -6,6 +6,7 @@ import type { WorkspaceExport } from "@/api/backup";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { downloadTextFile, slugify } from "@/lib/downloadFile";
 import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/useToast";
 import type { ThemePreference } from "@/stores/useSettingsStore";
@@ -17,17 +18,6 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; icon: typeof Sun }
   { value: "dark", label: "Dark", icon: Moon },
   { value: "system", label: "System", icon: Monitor },
 ];
-
-/** Filesystem-safe stand-in for a workspace name in a download filename. */
-function slugify(name: string): string {
-  return (
-    name
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "workspace"
-  );
-}
 
 export function SettingsRoute() {
   const { theme, setTheme } = useTheme();
@@ -43,13 +33,11 @@ export function SettingsRoute() {
     setExporting(true);
     try {
       const data = await backupApi.exportWorkspace(WORKSPACE_ID);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `loom-${slugify(data.workspace.name)}-${data.exportedAt.slice(0, 10)}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadTextFile(
+        `loom-${slugify(data.workspace.name)}-${data.exportedAt.slice(0, 10)}.json`,
+        JSON.stringify(data, null, 2),
+        "application/json",
+      );
       toast("Workspace exported", "success");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "Couldn't export the workspace.", "error");

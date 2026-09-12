@@ -49,6 +49,32 @@ export async function createBlock(input: CreateBlockInput): Promise<Block> {
   return newBlock;
 }
 
+/** Appends many top-level blocks to a page in one round trip, in the
+ * given order — used by Markdown import, which would otherwise need one
+ * `createBlock` call per block (the same N+1 concern
+ * `pageProperties.ts`'s `addPropertyToPages` already solved for table
+ * columns). */
+export async function createBlocks(
+  pageId: string,
+  drafts: { type: BlockType; content: Block["content"] }[],
+): Promise<Block[]> {
+  await networkDelay(150);
+  const db = mockDb.read();
+  const startOrder = getOrderedBlocks(db.blocks, pageId, null).length;
+
+  const created = drafts.map((draft, index): Block => ({
+    id: `block-${crypto.randomUUID()}`,
+    pageId,
+    parentBlockId: null,
+    type: draft.type,
+    content: draft.content,
+    order: startOrder + index,
+  }));
+  for (const block of created) db.blocks[block.id] = block;
+  mockDb.write(db);
+  return created;
+}
+
 export async function updateBlock(
   id: string,
   changes: Partial<Pick<Block, "type" | "content">>,

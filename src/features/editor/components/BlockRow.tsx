@@ -13,7 +13,9 @@ import {
 import { BoardBlockView } from "@/features/editor/components/BoardBlockView";
 import { CodeBlockView } from "@/features/editor/components/CodeBlockView";
 import { DividerView } from "@/features/editor/components/DividerView";
+import { EmbedBlockView } from "@/features/editor/components/EmbedBlockView";
 import { ImageBlockView } from "@/features/editor/components/ImageBlockView";
+import { DatabaseBlockView } from "@/features/database/components/DatabaseBlockView";
 import { SlashMenu } from "@/features/editor/components/SlashMenu";
 import { TableBlockView } from "@/features/editor/components/TableBlockView";
 import { TextBlockView } from "@/features/editor/components/TextBlockView";
@@ -123,6 +125,15 @@ export const BlockRow = memo(function BlockRow({
         />
       );
       break;
+    case "embed":
+      content = (
+        <EmbedBlockView
+          url={typeof block.content.url === "string" ? block.content.url : ""}
+          onChange={(next) => updateBlockContent(block.id, next)}
+          onBackspaceEmpty={handlers.onBackspaceEmpty}
+        />
+      );
+      break;
     case "table":
       content = (
         <TableBlockView
@@ -147,6 +158,11 @@ export const BlockRow = memo(function BlockRow({
           onChange={(next) => updateBlockContent(block.id, next)}
         />
       );
+      break;
+    case "database":
+      // A database block reads its rows from live sub-pages, not from its
+      // own content — pageId (the page this block lives in) is all it needs.
+      content = <DatabaseBlockView pageId={pageId} />;
       break;
     case "toggle": {
       const isExpanded = !collapsedToggleIds[block.id];

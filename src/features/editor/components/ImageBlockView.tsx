@@ -13,11 +13,11 @@ interface ImageBlockViewProps {
 }
 
 // Uploaded images are stored as data URIs directly in the block's content —
-// there's no real backend to upload to. localStorage has a shared quota
-// (commonly ~5MB per origin) across every page's content, so this caps a
-// single upload well under that rather than letting one large image eat
-// most of it.
-const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
+// there's no real backend to upload to. IndexedDB's per-origin quota is
+// generally a large fraction of free disk space (not the ~5-10MB ceiling
+// localStorage had), so this cap exists to keep a single page's content
+// reasonably sized in memory and on the wire, not to protect a tight quota.
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

@@ -11,6 +11,7 @@ import {
 import { NavLink } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import { DailyNotesList } from "@/features/workspace/components/DailyNotesList";
 import { FavoritesList } from "@/features/workspace/components/FavoritesList";
 import { PageTree } from "@/features/workspace/components/PageTree";
 import { RecentsList } from "@/features/workspace/components/RecentsList";
@@ -80,6 +81,7 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto py-3">
       <FavoritesList onNavigate={onNavigate} />
+      <DailyNotesList onNavigate={onNavigate} />
       <RecentsList onNavigate={onNavigate} />
       <PageTree onNavigate={onNavigate} />
       <NavList onNavigate={onNavigate} />

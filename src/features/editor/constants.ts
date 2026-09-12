@@ -1,6 +1,7 @@
 import {
   ChevronRight,
   Code2,
+  Database,
   Heading1,
   Heading2,
   Heading3,
@@ -11,6 +12,7 @@ import {
   ListOrdered,
   Megaphone,
   Minus,
+  PlaySquare,
   Quote,
   Table as TableIcon,
   Type,
@@ -120,6 +122,13 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     emptyContent: () => ({ url: "" }),
   },
   {
+    type: "embed",
+    label: "Embed",
+    keywords: ["embed", "youtube", "video"],
+    icon: PlaySquare,
+    emptyContent: () => ({ url: "" }),
+  },
+  {
     type: "table",
     label: "Table",
     keywords: ["table", "grid"],
@@ -149,5 +158,12 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         },
       ],
     }),
+  },
+  {
+    type: "database",
+    label: "Table view",
+    keywords: ["database", "table", "view", "sub-pages"],
+    icon: Database,
+    emptyContent: () => ({ viewType: "table" }),
   },
 ];

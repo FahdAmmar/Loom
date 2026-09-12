@@ -7,6 +7,7 @@ import { useNavigate } from "react-router";
 import { WikilinkMenu } from "@/features/editor/components/WikilinkMenu";
 import { PageLinkNode } from "@/features/editor/nodes/pageLinkNode";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
+import { detectMentionTrigger } from "@/lib/blocks";
 import { cn } from "@/lib/utils";
 import { usePageStore } from "@/stores/usePageStore";
 import type { BlockType, Page } from "@/types/entities";
@@ -190,7 +191,9 @@ export function BlockTextEditor({
         onSlashStateChange({ open: false, query: "" });
       }
 
-      // Wikilink — can trigger anywhere in the text, not just at the start.
+      // Wikilink/mention trigger — can trigger anywhere in the text, not
+      // just at the start. "[[" is the primary trigger; "@" is a shorter
+      // alias for the same flow (see detectMentionTrigger).
       const { $from } = e.state.selection;
       const textBeforeCursor = $from.parent.textBetween(
         0,
@@ -198,15 +201,15 @@ export function BlockTextEditor({
         undefined,
         "\ufffc",
       );
-      const wikilinkMatch = /\[\[([^[\]]*)$/.exec(textBeforeCursor);
-      if (wikilinkMatch) {
+      const trigger = detectMentionTrigger(textBeforeCursor);
+      if (trigger) {
         isWikilinkOpenRef.current = true;
         setWikilinkActiveIndex(0);
         const coords = e.view.coordsAtPos(e.state.selection.from);
-        const matchStart = $from.pos - wikilinkMatch[0].length;
+        const matchStart = $from.pos - trigger.length;
         setWikilinkState({
           open: true,
-          query: wikilinkMatch[1],
+          query: trigger.query,
           coords: { x: coords.left, y: coords.bottom },
           range: { from: matchStart, to: $from.pos },
         });

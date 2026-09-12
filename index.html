@@ -30,7 +30,22 @@
     <title>Loom</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Replaced by React once initDb() resolves (typically well under 50ms) — a
+           plain-text fallback so a slow device never shows a blank screen. -->
+      <div style="display: flex; height: 100vh; align-items: center; justify-content: center">
+        <p
+          style="
+            color: var(--muted-foreground, #62636f);
+            font:
+              14px system-ui,
+              sans-serif;
+          "
+        >
+          Loading…
+        </p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,3 +1,4 @@
+import { idbGet, idbSet } from "@/api/idbStorage";
 import { extractPageLinkIdsFromHtml } from "@/lib/blocks";
 import type {
   Block,
@@ -5,15 +6,19 @@ import type {
   Page,
   PageProperty,
   PageTag,
+  PageVersion,
   Tag,
   Template,
   Workspace,
 } from "@/types/entities";
 
-const STORAGE_KEY = "loom-mock-db-v5";
+/** Key inside the IndexedDB "kv" store that the whole database is persisted under. */
+const IDB_KEY = "loom-db-v1";
+/** Where the database lived before the IndexedDB migration — read once, at startup, to migrate existing users forward. */
+const LEGACY_LOCALSTORAGE_KEY = "loom-mock-db-v5";
 const DEFAULT_WORKSPACE_ID = "default";
 
-interface MockDb {
+export interface MockDb {
   workspaces: Record<string, Workspace>;
   pages: Record<string, Page>;
   blocks: Record<string, Block>;
@@ -22,6 +27,7 @@ interface MockDb {
   pageTags: Record<string, PageTag>;
   pageProperties: Record<string, PageProperty>;
   templates: Record<string, Template>;
+  pageVersions: Record<string, PageVersion>;
 }
 
 let blockOrder = 0;
@@ -214,6 +220,12 @@ function seedDb(): MockDb {
     block(gettingStarted.id, "paragraph", {
       html: `Click the <strong>+</strong> next to any page in the sidebar to add a sub-page, or the <strong>/</strong> menu here to add a new kind of block. Head back to ${pageLinkHtml(welcome)} any time.`,
     }),
+    block(gettingStarted.id, "paragraph", {
+      html: "You can also embed a YouTube video — type <code>/embed</code>, or pick it from the slash menu:",
+    }),
+    block(gettingStarted.id, "embed", {
+      url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+    }),
   ];
 
   blockOrder = 0;
@@ -253,9 +265,7 @@ function seedDb(): MockDb {
     ),
     block(notes.id, "divider", {}),
     block(notes.id, "heading2", { html: "Browse" }),
-    block(notes.id, "bulletList", { html: pageLinkHtml(meetingNotes) }),
-    block(notes.id, "bulletList", { html: pageLinkHtml(researchNotes) }),
-    block(notes.id, "bulletList", { html: pageLinkHtml(readingList) }),
+    block(notes.id, "database", { viewType: "table" }),
   );
 
   blockOrder = 0;
@@ -873,40 +883,103 @@ function seedDb(): MockDb {
       [bugTrackerTemplate.id]: bugTrackerTemplate,
       [dailyJournalTemplate.id]: dailyJournalTemplate,
     },
+    pageVersions: {}, // no history until the user explicitly saves a checkpoint
   };
 }
 
+/** Defensive against older schemas that predate a table — used for both a
+ * corrupt/partial current record and a migrated legacy one. */
+function normalizeDb(parsed: Partial<MockDb>): MockDb {
+  if (!parsed.workspaces) parsed.workspaces = {};
+  if (!parsed.pages) parsed.pages = {};
+  if (!parsed.blocks) parsed.blocks = {};
+  if (!parsed.links) parsed.links = {};
+  if (!parsed.tags) parsed.tags = {};
+  if (!parsed.pageTags) parsed.pageTags = {};
+  if (!parsed.pageProperties) parsed.pageProperties = {};
+  if (!parsed.templates) parsed.templates = {};
+  if (!parsed.pageVersions) parsed.pageVersions = {};
+  return parsed as MockDb;
+}
+
+// The database lives in memory for the duration of a session — every
+// mockDb.read()/write() call below is synchronous, exactly like the
+// localStorage-backed version this replaced, so none of the api/*.ts
+// modules that call them need to change. IndexedDB (inherently async) sits
+// underneath purely as a persistence layer: initDb() hydrates this cache
+// once at startup, and every write is queued off to IndexedDB in the
+// background afterward.
+let cachedDb: MockDb | null = null;
+
+// Persists writes strictly in the order they happened. Without this, two
+// writes fired close together could race and let the older one "win" on
+// disk even though the newer one already won in memory.
+let persistQueue: Promise<void> = Promise.resolve();
+
+function schedulePersist(db: MockDb): void {
+  if (typeof indexedDB === "undefined") return; // e.g. some private-browsing modes — degrade to in-memory-only for this session
+  persistQueue = persistQueue
+    .then(() => idbSet(IDB_KEY, db))
+    .catch(() => {
+      // A failed persist shouldn't crash the app — the in-memory copy (already
+      // applied by writeDb before this queue runs) is still correct for the
+      // rest of the session; only durability across a reload is at risk.
+    });
+}
+
 function readDb(): MockDb {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    const seeded = seedDb();
-    writeDb(seeded);
-    return seeded;
-  }
-  try {
-    const parsed = JSON.parse(raw) as Partial<MockDb>;
-    // Defensive against older schemas that predate a table.
-    if (!parsed.blocks) parsed.blocks = {};
-    if (!parsed.links) parsed.links = {};
-    if (!parsed.tags) parsed.tags = {};
-    if (!parsed.pageTags) parsed.pageTags = {};
-    if (!parsed.pageProperties) parsed.pageProperties = {};
-    if (!parsed.templates) parsed.templates = {};
-    return parsed as MockDb;
-  } catch {
-    const seeded = seedDb();
-    writeDb(seeded);
-    return seeded;
-  }
+  // First call of the session, before initDb() has resolved (or in a test,
+  // which never calls it): seed in memory so the app has *something* to
+  // read immediately. initDb() overwrites this with real persisted data,
+  // if any exists, before the app renders.
+  if (!cachedDb) cachedDb = seedDb();
+  return cachedDb;
 }
 
 function writeDb(db: MockDb): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  cachedDb = db;
+  schedulePersist(db);
 }
 
 /** Simulated network latency so loading states are exercised honestly. */
 export function networkDelay(ms = 220): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Hydrates the in-memory cache from IndexedDB. Call once, before the app
+ * renders (see main.tsx) — every mockDb.read()/write() call before this
+ * resolves would otherwise see a fresh seed instead of real persisted data.
+ */
+export async function initDb(): Promise<void> {
+  if (typeof indexedDB === "undefined") {
+    cachedDb ??= seedDb();
+    return;
+  }
+  try {
+    const stored = await idbGet<Partial<MockDb>>(IDB_KEY);
+    if (stored) {
+      cachedDb = normalizeDb(stored);
+      return;
+    }
+
+    // Nothing in IndexedDB yet — check for data from before this migration.
+    const legacyRaw = localStorage.getItem(LEGACY_LOCALSTORAGE_KEY);
+    if (legacyRaw) {
+      const migrated = normalizeDb(JSON.parse(legacyRaw) as Partial<MockDb>);
+      cachedDb = migrated;
+      await idbSet(IDB_KEY, migrated);
+      localStorage.removeItem(LEGACY_LOCALSTORAGE_KEY);
+      return;
+    }
+
+    // First run ever: seed demo content and persist it.
+    cachedDb = seedDb();
+    await idbSet(IDB_KEY, cachedDb);
+  } catch (err) {
+    console.error("Loom: failed to initialize IndexedDB, continuing in-memory only.", err);
+    cachedDb ??= seedDb();
+  }
 }
 
 export const mockDb = {
@@ -916,4 +989,9 @@ export const mockDb = {
    * an easy way back to a known-good state (e.g. after testing import with
    * an unusual file) without needing to clear browser storage by hand. */
   resetToDemo: () => writeDb(seedDb()),
+  /** Test-only: resets the in-memory cache to a fresh seed, bypassing
+   * IndexedDB entirely, so each test starts from a known, isolated state. */
+  resetForTests: () => {
+    cachedDb = seedDb();
+  },
 };

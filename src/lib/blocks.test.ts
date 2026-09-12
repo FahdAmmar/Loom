@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  detectMentionTrigger,
   extractPageLinkIdsFromHtml,
   extractPlainText,
   getDescendantBlockIds,
   getOrderedBlocks,
   groupIntoRuns,
+  insertWikilinkForMention,
   updateWikilinkTitlesInHtml,
 } from "@/lib/blocks";
 import { makeBlock } from "@/test/fixtures";
@@ -254,5 +256,113 @@ describe("groupIntoRuns", () => {
 
   it("returns an empty array for no blocks", () => {
     expect(groupIntoRuns([])).toEqual([]);
+  });
+});
+
+describe("insertWikilinkForMention", () => {
+  it("wraps the first plain-text mention in a wikilink chip", () => {
+    const result = insertWikilinkForMention(
+      "<p>See the Getting Started guide.</p>",
+      "page-1",
+      "Getting Started",
+    );
+    expect(result).toBe(
+      '<p>See the <span data-page-link="" data-page-id="page-1" class="page-link-chip">↗ Getting Started</span> guide.</p>',
+    );
+  });
+
+  it("matches case-insensitively but labels the chip with the target page's own title casing", () => {
+    const result = insertWikilinkForMention(
+      "<p>see getting started today</p>",
+      "page-1",
+      "Getting Started",
+    );
+    expect(result).toBe(
+      '<p>see <span data-page-link="" data-page-id="page-1" class="page-link-chip">↗ Getting Started</span> today</p>',
+    );
+  });
+
+  it("only replaces the first occurrence when a title appears twice", () => {
+    const result = insertWikilinkForMention("<p>Notes and more Notes</p>", "page-1", "Notes");
+    expect(result).toBe(
+      '<p><span data-page-link="" data-page-id="page-1" class="page-link-chip">↗ Notes</span> and more Notes</p>',
+    );
+  });
+
+  it("finds a mention in a text node immediately following an inline formatting tag", () => {
+    // "Getting" is bold, "Started" isn't — the match lives entirely in the
+    // second text node, right after the </strong> boundary.
+    const result = insertWikilinkForMention(
+      "<p><strong>Getting</strong> Started guide</p>",
+      "page-1",
+      "Started",
+    );
+    expect(result).toBe(
+      '<p><strong>Getting</strong> <span data-page-link="" data-page-id="page-1" class="page-link-chip">↗ Started</span> guide</p>',
+    );
+  });
+
+  it("never re-links an existing chip's own label text", () => {
+    const html =
+      '<p>See <span data-page-link="" data-page-id="page-2" class="page-link-chip">↗ Getting Started</span> for more.</p>';
+    expect(insertWikilinkForMention(html, "page-1", "Getting Started")).toBeNull();
+  });
+
+  it("returns null when the title isn't present in the block", () => {
+    expect(
+      insertWikilinkForMention("<p>Unrelated content.</p>", "page-1", "Getting Started"),
+    ).toBeNull();
+  });
+
+  it("returns null for an empty or whitespace-only title", () => {
+    expect(insertWikilinkForMention("<p>Some text</p>", "page-1", "   ")).toBeNull();
+  });
+});
+
+describe("detectMentionTrigger", () => {
+  it("detects an active [[ trigger and its query", () => {
+    expect(detectMentionTrigger("See the [[Getting")).toEqual({
+      query: "Getting",
+      length: "[[Getting".length,
+    });
+  });
+
+  it("detects an active [[ trigger with an empty query right after typing it", () => {
+    expect(detectMentionTrigger("See the [[")).toEqual({ query: "", length: 2 });
+  });
+
+  it("detects an @ trigger at the start of the text", () => {
+    expect(detectMentionTrigger("@getti")).toEqual({ query: "getti", length: "@getti".length });
+  });
+
+  it("detects an @ trigger right after whitespace", () => {
+    expect(detectMentionTrigger("ping @getti")).toEqual({
+      query: "getti",
+      length: "@getti".length,
+    });
+  });
+
+  it("does not trigger on an @ with no whitespace or line-start before it (e.g. an email address)", () => {
+    expect(detectMentionTrigger("contact me at foo@bar")).toBeNull();
+  });
+
+  it("prefers a [[ match over an @ match when both could apply", () => {
+    // an unrelated "@" earlier in the line shouldn't win over the active [[ at the cursor
+    expect(detectMentionTrigger("ping @someone then [[Getting")).toEqual({
+      query: "Getting",
+      length: "[[Getting".length,
+    });
+  });
+
+  it("stops matching once the query contains whitespace", () => {
+    expect(detectMentionTrigger("@two words")).toBeNull();
+  });
+
+  it("returns null when neither trigger is active", () => {
+    expect(detectMentionTrigger("just some plain text")).toBeNull();
+  });
+
+  it("returns null for an empty string", () => {
+    expect(detectMentionTrigger("")).toBeNull();
   });
 });

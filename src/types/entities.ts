@@ -28,6 +28,9 @@ export interface Page {
   title: string;
   icon?: string;
   isFavorite: boolean;
+  /** Set only on auto-created daily notes, as a "YYYY-MM-DD" local-date key.
+   * A regular page created by hand never has this. */
+  dailyNoteDate?: string;
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -48,7 +51,9 @@ export type BlockType =
   | "divider"
   | "image"
   | "table"
-  | "board";
+  | "board"
+  | "embed"
+  | "database";
 
 export interface Block {
   id: string;
@@ -122,4 +127,17 @@ export interface Template {
   name: string;
   icon?: string;
   blocks: Pick<Block, "type" | "content" | "order">[];
+}
+
+export interface PageVersion {
+  id: string;
+  pageId: Page["id"];
+  createdAt: string;
+  /** Why this checkpoint was taken — restoreVersion sets one automatically
+   * on the safety snapshot it saves before overwriting anything. */
+  label?: string;
+  /** A full, independent snapshot of every block the page had at save
+   * time — never a live reference to the actual Block records (see
+   * `structuredClone` in `api/pageVersions.ts`). */
+  blocks: Block[];
 }

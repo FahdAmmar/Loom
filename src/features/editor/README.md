@@ -24,9 +24,12 @@
   hypothetical one
 - `useEditorStore` fully implemented (was a skeleton through Phase 1–2)
 
-**Still ahead:** mentions and tags inside blocks (Phase 6), real image
-upload once a backend exists, drag-and-drop reordering, richer tables
-(merge/resize/delete row-col).
+**Since resolved:** page-level tags (not block-level — see the top-level
+README's scope note), real client-side image upload (data URI, since
+there's no backend), drag-and-drop block reordering, and `@` mentions
+(a shorter alias for `[[`, see `detectMentionTrigger` in `lib/blocks.ts`).
+
+**Still ahead:** richer tables (merge/resize/delete row-col).
 
 **Implemented (Phase 4):**
 
