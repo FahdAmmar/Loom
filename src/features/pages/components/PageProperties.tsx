@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
 
 import * as propertiesApi from "@/api/pageProperties";
+import { getSelectOptions, parseOptionList } from "@/lib/properties";
 import { cn } from "@/lib/utils";
 import type { PageProperty, PagePropertyType } from "@/types/entities";
 
@@ -12,11 +13,6 @@ const PROPERTY_TYPES: { value: PagePropertyType; label: string }[] = [
   { value: "select", label: "Select" },
   { value: "checkbox", label: "Checkbox" },
 ];
-
-// No per-property options schema exists yet (see Phase 0 data model), so
-// every "select" property shares one small, generic preset list rather than
-// letting each property define its own choices.
-const SELECT_PRESET_OPTIONS = ["Not started", "In progress", "Published", "Archived"];
 
 export function PropertyValueInput({
   property,
@@ -65,7 +61,7 @@ export function PropertyValueInput({
           className="text-foreground w-full bg-transparent text-sm outline-none"
         >
           <option value="">—</option>
-          {SELECT_PRESET_OPTIONS.map((option) => (
+          {getSelectOptions(property).map((option) => (
             <option key={option} value={option}>
               {option}
             </option>
@@ -91,6 +87,9 @@ export function PageProperties({ pageId }: { pageId: string }) {
   const [isAdding, setAdding] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newType, setNewType] = useState<PagePropertyType>("text");
+  const [newOptions, setNewOptions] = useState("");
+  const [editingOptionsId, setEditingOptionsId] = useState<string | null>(null);
+  const [optionsDraft, setOptionsDraft] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -115,11 +114,31 @@ export function PageProperties({ pageId }: { pageId: string }) {
   async function handleAdd() {
     const trimmed = newKey.trim();
     if (!trimmed) return;
-    const property = await propertiesApi.addProperty(pageId, trimmed, newType);
+    const property = await propertiesApi.addProperty(
+      pageId,
+      trimmed,
+      newType,
+      newType === "select" ? parseOptionList(newOptions) : undefined,
+    );
     setProperties((prev) => [...prev, property]);
     setNewKey("");
     setNewType("text");
+    setNewOptions("");
     setAdding(false);
+  }
+
+  function startEditingOptions(property: PageProperty) {
+    setOptionsDraft(getSelectOptions({ options: property.options, value: null }).join(", "));
+    setEditingOptionsId(property.id);
+  }
+
+  async function saveOptions(property: PageProperty) {
+    setEditingOptionsId(null);
+    const updated = await propertiesApi.updatePropertyOptions(
+      property.id,
+      parseOptionList(optionsDraft),
+    );
+    setProperties((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   }
 
   if (properties.length === 0 && !isAdding) {
@@ -138,22 +157,64 @@ export function PageProperties({ pageId }: { pageId: string }) {
   return (
     <div className="mt-3 flex flex-col gap-1.5">
       {properties.map((property) => (
-        <div key={property.id} className="group flex items-center gap-3 text-sm">
-          <span className="text-text-faint w-28 shrink-0 truncate">{property.key}</span>
-          <div className="min-w-0 flex-1">
-            <PropertyValueInput
-              property={property}
-              onChange={(v) => handleValueChange(property, v)}
-            />
+        <div key={property.id} className="flex flex-col gap-1">
+          <div className="group flex items-center gap-3 text-sm">
+            <span className="text-text-faint w-28 shrink-0 truncate">{property.key}</span>
+            <div className="min-w-0 flex-1">
+              <PropertyValueInput
+                property={property}
+                onChange={(v) => handleValueChange(property, v)}
+              />
+            </div>
+            {property.type === "select" && (
+              <button
+                type="button"
+                onClick={() => startEditingOptions(property)}
+                aria-label={`Edit options for ${property.key}`}
+                title="Edit options"
+                className="text-text-faint hover:text-foreground shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleDelete(property.id)}
+              aria-label={`Remove property ${property.key}`}
+              className="text-text-faint hover:text-destructive shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+            >
+              <X className="size-3.5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => handleDelete(property.id)}
-            aria-label={`Remove property ${property.key}`}
-            className="text-text-faint hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100"
-          >
-            <X className="size-3.5" />
-          </button>
+          {editingOptionsId === property.id && (
+            <div className="flex items-center gap-2 pl-[7.75rem]">
+              <input
+                value={optionsDraft}
+                onChange={(e) => setOptionsDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveOptions(property);
+                  if (e.key === "Escape") setEditingOptionsId(null);
+                }}
+                aria-label={`Options for ${property.key}, separated by commas`}
+                placeholder="Low, Medium, High"
+                className="border-border min-w-0 flex-1 rounded border bg-transparent px-2 py-1 text-xs outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => saveOptions(property)}
+                className="text-primary text-xs font-medium"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingOptionsId(null)}
+                className="text-text-faint hover:text-foreground text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       ))}
 
@@ -177,6 +238,16 @@ export function PageProperties({ pageId }: { pageId: string }) {
               </option>
             ))}
           </select>
+          {newType === "select" && (
+            <input
+              value={newOptions}
+              onChange={(e) => setNewOptions(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              aria-label="Options, separated by commas"
+              placeholder="Options: Low, Medium, High"
+              className="border-border w-52 rounded border bg-transparent px-2 py-1 text-xs outline-none"
+            />
+          )}
           <button
             type="button"
             onClick={handleAdd}

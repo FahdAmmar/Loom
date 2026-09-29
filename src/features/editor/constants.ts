@@ -1,7 +1,6 @@
 import {
   ChevronRight,
   Code2,
-  Database,
   Heading1,
   Heading2,
   Heading3,
@@ -12,7 +11,7 @@ import {
   ListOrdered,
   Megaphone,
   Minus,
-  PlaySquare,
+  Paperclip,
   Quote,
   Table as TableIcon,
   Type,
@@ -122,10 +121,10 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     emptyContent: () => ({ url: "" }),
   },
   {
-    type: "embed",
-    label: "Embed",
-    keywords: ["embed", "youtube", "video"],
-    icon: PlaySquare,
+    type: "file",
+    label: "File attachment",
+    keywords: ["file", "attachment", "upload", "pdf", "document"],
+    icon: Paperclip,
     emptyContent: () => ({ url: "" }),
   },
   {
@@ -158,12 +157,5 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         },
       ],
     }),
-  },
-  {
-    type: "database",
-    label: "Table view",
-    keywords: ["database", "table", "view", "sub-pages"],
-    icon: Database,
-    emptyContent: () => ({ viewType: "table" }),
   },
 ];

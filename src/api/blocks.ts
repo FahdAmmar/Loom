@@ -2,7 +2,7 @@ import { ApiError } from "@/api/client";
 import { mockDb, networkDelay } from "@/api/_mockDb";
 import { getDescendantBlockIds, getOrderedBlocks } from "@/lib/blocks";
 import { arrayMove } from "@/lib/utils";
-import type { Block, BlockType } from "@/types/entities";
+import type { Block, BlockType, Link } from "@/types/entities";
 
 export async function listBlocks(pageId: string): Promise<Block[]> {
   await networkDelay();
@@ -49,32 +49,6 @@ export async function createBlock(input: CreateBlockInput): Promise<Block> {
   return newBlock;
 }
 
-/** Appends many top-level blocks to a page in one round trip, in the
- * given order — used by Markdown import, which would otherwise need one
- * `createBlock` call per block (the same N+1 concern
- * `pageProperties.ts`'s `addPropertyToPages` already solved for table
- * columns). */
-export async function createBlocks(
-  pageId: string,
-  drafts: { type: BlockType; content: Block["content"] }[],
-): Promise<Block[]> {
-  await networkDelay(150);
-  const db = mockDb.read();
-  const startOrder = getOrderedBlocks(db.blocks, pageId, null).length;
-
-  const created = drafts.map((draft, index): Block => ({
-    id: `block-${crypto.randomUUID()}`,
-    pageId,
-    parentBlockId: null,
-    type: draft.type,
-    content: draft.content,
-    order: startOrder + index,
-  }));
-  for (const block of created) db.blocks[block.id] = block;
-  mockDb.write(db);
-  return created;
-}
-
 export async function updateBlock(
   id: string,
   changes: Partial<Pick<Block, "type" | "content">>,
@@ -88,6 +62,40 @@ export async function updateBlock(
   db.blocks[id] = updated;
   mockDb.write(db);
   return updated;
+}
+
+/** Everything a `deleteBlock` call would remove — capture this beforehand so the deletion can be undone with `restoreBlocksFromSnapshot`. */
+export interface BlockDeletionSnapshot {
+  blocks: Block[];
+  links: Link[];
+}
+
+/** Read-only preview of exactly what `deleteBlock(id)` would remove — the block, its descendants, and links sourced from any of them. */
+export async function getBlockDeletionSnapshot(id: string): Promise<BlockDeletionSnapshot> {
+  await networkDelay();
+  const db = mockDb.read();
+  if (!db.blocks[id]) throw new ApiError(`No block found with id "${id}".`, 404);
+
+  const idsToRemove = [id, ...getDescendantBlockIds(db.blocks, id)];
+  const idSet = new Set(idsToRemove);
+
+  return {
+    blocks: idsToRemove.map((bid) => db.blocks[bid]).filter((b): b is Block => Boolean(b)),
+    links: Object.values(db.links).filter(
+      (link) => link.sourceBlockId && idSet.has(link.sourceBlockId),
+    ),
+  };
+}
+
+/** Reinserts a snapshot captured by `getBlockDeletionSnapshot` — undoes a `deleteBlock` call, restoring the original ids exactly. */
+export async function restoreBlocksFromSnapshot(
+  snapshot: BlockDeletionSnapshot,
+): Promise<void> {
+  await networkDelay();
+  const db = mockDb.read();
+  for (const block of snapshot.blocks) db.blocks[block.id] = block;
+  for (const link of snapshot.links) db.links[link.id] = link;
+  mockDb.write(db);
 }
 
 export async function deleteBlock(id: string): Promise<string[]> {

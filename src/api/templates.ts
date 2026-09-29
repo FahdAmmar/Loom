@@ -1,7 +1,42 @@
 import { ApiError } from "@/api/client";
 import { mockDb, networkDelay } from "@/api/_mockDb";
 import { getOrderedBlocks } from "@/lib/blocks";
-import type { Page, Template } from "@/types/entities";
+import type { Block, Page, Template, TemplateBlock } from "@/types/entities";
+
+/** Recursively captures a block and its descendants (via parentBlockId) into template shape. */
+function buildTemplateBlockTree(
+  blocksById: Record<string, Block>,
+  pageId: string,
+  parentBlockId: string | null,
+): TemplateBlock[] {
+  return getOrderedBlocks(blocksById, pageId, parentBlockId).map((block) => ({
+    type: block.type,
+    content: block.content,
+    order: block.order,
+    children: buildTemplateBlockTree(blocksById, pageId, block.id),
+  }));
+}
+
+/** Recursively instantiates a template's block tree onto a new page, generating fresh ids and remapping parentBlockId at every level. */
+function instantiateTemplateBlocks(
+  templateBlocks: TemplateBlock[],
+  pageId: string,
+  parentBlockId: string | null,
+  db: ReturnType<typeof mockDb.read>,
+) {
+  for (const templateBlock of templateBlocks) {
+    const id = `block-${crypto.randomUUID()}`;
+    db.blocks[id] = {
+      id,
+      pageId,
+      parentBlockId,
+      type: templateBlock.type,
+      content: templateBlock.content,
+      order: templateBlock.order,
+    };
+    instantiateTemplateBlocks(templateBlock.children, pageId, id, db);
+  }
+}
 
 export async function listTemplates(workspaceId: string): Promise<Template[]> {
   await networkDelay();
@@ -18,15 +53,11 @@ export async function createTemplateFromPage(
   const page = db.pages[pageId];
   if (!page) throw new ApiError(`No page found with id "${pageId}".`, 404);
 
-  // Only top-level blocks — Template.blocks has no parent-child shape yet,
-  // so a toggle's nested children don't carry over into the template.
-  const topLevelBlocks = getOrderedBlocks(db.blocks, pageId, null);
-
   const template: Template = {
     id: `template-${crypto.randomUUID()}`,
     workspaceId,
     name: name.trim() || "Untitled template",
-    blocks: topLevelBlocks.map((b) => ({ type: b.type, content: b.content, order: b.order })),
+    blocks: buildTemplateBlockTree(db.blocks, pageId, null),
   };
   db.templates[template.id] = template;
   mockDb.write(db);
@@ -66,18 +97,7 @@ export async function createPageFromTemplate(
     updatedAt: now,
   };
   db.pages[page.id] = page;
-
-  for (const templateBlock of template.blocks) {
-    const id = `block-${crypto.randomUUID()}`;
-    db.blocks[id] = {
-      id,
-      pageId: page.id,
-      parentBlockId: null,
-      type: templateBlock.type,
-      content: templateBlock.content,
-      order: templateBlock.order,
-    };
-  }
+  instantiateTemplateBlocks(template.blocks, page.id, null, db);
 
   mockDb.write(db);
   return page;

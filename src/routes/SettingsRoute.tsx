@@ -1,15 +1,29 @@
 import { useRef, useState, type ChangeEvent } from "react";
-import { Download, Loader2, Monitor, Moon, RotateCcw, Sun, Upload } from "lucide-react";
+import {
+  AlignHorizontalJustifyCenter,
+  Download,
+  Keyboard,
+  Loader2,
+  Monitor,
+  Moon,
+  RotateCcw,
+  Sun,
+  Upload,
+} from "lucide-react";
 
 import * as backupApi from "@/api/backup";
 import type { WorkspaceExport } from "@/api/backup";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { downloadTextFile, slugify } from "@/lib/downloadFile";
 import { useTheme } from "@/hooks/useTheme";
 import { useToast } from "@/hooks/useToast";
-import type { ThemePreference } from "@/stores/useSettingsStore";
+import { useShortcutsDialogStore } from "@/stores/useShortcutsDialogStore";
+import {
+  useSettingsStore,
+  type EditorWidth,
+  type ThemePreference,
+} from "@/stores/useSettingsStore";
 
 const WORKSPACE_ID = "default";
 
@@ -19,9 +33,28 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; icon: typeof Sun }
   { value: "system", label: "System", icon: Monitor },
 ];
 
+const EDITOR_WIDTH_OPTIONS: { value: EditorWidth; label: string; description: string }[] = [
+  { value: "narrow", label: "Narrow", description: "Easier to read long paragraphs" },
+  { value: "wide", label: "Wide", description: "More room for tables and boards" },
+];
+
+/** Filesystem-safe stand-in for a workspace name in a download filename. */
+function slugify(name: string): string {
+  return (
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "workspace"
+  );
+}
+
 export function SettingsRoute() {
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
+  const editorWidth = useSettingsStore((s) => s.editorWidth);
+  const setEditorWidth = useSettingsStore((s) => s.setEditorWidth);
+  const openShortcuts = useShortcutsDialogStore((s) => s.open);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isExporting, setExporting] = useState(false);
   const [isImporting, setImporting] = useState(false);
@@ -33,11 +66,13 @@ export function SettingsRoute() {
     setExporting(true);
     try {
       const data = await backupApi.exportWorkspace(WORKSPACE_ID);
-      downloadTextFile(
-        `loom-${slugify(data.workspace.name)}-${data.exportedAt.slice(0, 10)}.json`,
-        JSON.stringify(data, null, 2),
-        "application/json",
-      );
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `loom-${slugify(data.workspace.name)}-${data.exportedAt.slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
       toast("Workspace exported", "success");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "Couldn't export the workspace.", "error");
@@ -114,6 +149,39 @@ export function SettingsRoute() {
             </Button>
           ))}
         </div>
+      </section>
+
+      <section className="border-border mt-8 border-t pt-8">
+        <h2 className="text-foreground text-sm font-medium">Editor</h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          How wide the page content column is.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:max-w-sm">
+          {EDITOR_WIDTH_OPTIONS.map(({ value, label, description }) => (
+            <Button
+              key={value}
+              type="button"
+              aria-pressed={editorWidth === value}
+              variant={editorWidth === value ? "default" : "outline"}
+              className="h-auto flex-col items-start gap-0.5 py-3 text-left"
+              onClick={() => setEditorWidth(value)}
+            >
+              <span className="flex items-center gap-1.5">
+                <AlignHorizontalJustifyCenter className="size-3.5" />
+                {label}
+              </span>
+              <span className="text-xs font-normal opacity-80">{description}</span>
+            </Button>
+          ))}
+        </div>
+
+        <p className="text-muted-foreground mt-6 text-sm">
+          Every keyboard shortcut, in one place.
+        </p>
+        <Button type="button" variant="outline" className="mt-2" onClick={openShortcuts}>
+          <Keyboard className="size-3.5" />
+          Keyboard shortcuts
+        </Button>
       </section>
 
       <section className="border-border mt-8 border-t pt-8">

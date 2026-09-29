@@ -26,7 +26,8 @@ interface EditorState {
     type: Block["type"],
     content?: Block["content"],
   ) => Promise<void>;
-  deleteBlock: (id: string) => Promise<void>;
+  deleteBlock: (id: string) => Promise<blocksApi.BlockDeletionSnapshot>;
+  undoDeleteBlock: (snapshot: blocksApi.BlockDeletionSnapshot) => Promise<void>;
   moveBlock: (id: string, direction: "up" | "down") => Promise<void>;
   /** Drag-and-drop reorder within the same parent scope — see api/blocks.ts reorderBlock. */
   reorderBlock: (id: string, newIndex: number) => Promise<void>;
@@ -142,10 +143,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   deleteBlock: async (id) => {
+    // Captured before the delete so the caller can offer "Undo" —
+    // deleteBlock's own contract (which ids it removes) stays unchanged.
+    const snapshot = await blocksApi.getBlockDeletionSnapshot(id);
     const removedIds = await blocksApi.deleteBlock(id);
     set((s) => {
       const next = { ...s.blocksById };
       for (const removedId of removedIds) delete next[removedId];
+      return { blocksById: next };
+    });
+    return snapshot;
+  },
+
+  undoDeleteBlock: async (snapshot) => {
+    await blocksApi.restoreBlocksFromSnapshot(snapshot);
+    set((s) => {
+      const next = { ...s.blocksById };
+      for (const block of snapshot.blocks) next[block.id] = block;
       return { blocksById: next };
     });
   },

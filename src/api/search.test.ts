@@ -115,4 +115,35 @@ describe("search", () => {
     seed([makePage({ title: "Roadmap" })]);
     expect(await search("xyzzy nonexistent query")).toEqual([]);
   });
+
+  it("reports a highlight range on a title match that points at the matched substring", async () => {
+    const page = makePage({ title: "Weekly Planner" });
+    seed([page]);
+
+    const [result] = await search("Weekly Planner");
+    expect(result.highlightStart).toBeDefined();
+    expect(result.highlightEnd).toBeDefined();
+    expect(
+      page.title.slice(result.highlightStart, result.highlightEnd).toLowerCase(),
+    ).toContain("weekly");
+  });
+
+  it("reports a highlight range on a content match that points at the matched substring within the snippet", async () => {
+    const page = makePage({ title: "Journal" });
+    seed(
+      [page],
+      [
+        makeBlock(
+          "paragraph",
+          { html: "Remember to water the plants today." },
+          { pageId: page.id },
+        ),
+      ],
+    );
+
+    const [result] = await search("water the plants");
+    expect(result.snippet).toBeDefined();
+    const highlighted = result.snippet?.slice(result.highlightStart, result.highlightEnd);
+    expect(highlighted?.toLowerCase()).toContain("water");
+  });
 });

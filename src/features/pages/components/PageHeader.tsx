@@ -2,10 +2,12 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 
+import { IconPicker } from "@/features/pages/components/IconPicker";
 import { PageActionsMenu } from "@/features/pages/components/PageActionsMenu";
 import { PageProperties } from "@/features/pages/components/PageProperties";
 import { PageTags } from "@/features/pages/components/PageTags";
 import { getAncestors } from "@/lib/tree";
+import { EDITOR_WIDTH_CLASSES, useSettingsStore } from "@/stores/useSettingsStore";
 import { usePageStore } from "@/stores/usePageStore";
 import { useEditorStore } from "@/stores/useEditorStore";
 import type { Page } from "@/types/entities";
@@ -26,6 +28,8 @@ export function PageHeader({ page }: { page: Page }) {
   const navigate = useNavigate();
   const pagesById = usePageStore((s) => s.pagesById);
   const renamePage = usePageStore((s) => s.renamePage);
+  const setPageIcon = usePageStore((s) => s.setPageIcon);
+  const editorWidth = useSettingsStore((s) => s.editorWidth);
   const [title, setTitle] = useState(page.title);
 
   const ancestors = getAncestors(pagesById, page.id);
@@ -41,7 +45,7 @@ export function PageHeader({ page }: { page: Page }) {
 
   return (
     <div className="border-border border-b px-6 py-4">
-      <div className="mx-auto max-w-3xl">
+      <div className={`mx-auto ${EDITOR_WIDTH_CLASSES[editorWidth]}`}>
         <nav
           aria-label="Breadcrumb"
           className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
@@ -64,6 +68,7 @@ export function PageHeader({ page }: { page: Page }) {
         </nav>
 
         <div className="mt-2 flex items-center gap-2">
+          <IconPicker icon={page.icon} onChange={(icon) => setPageIcon(page.id, icon)} />
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}

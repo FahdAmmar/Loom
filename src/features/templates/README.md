@@ -60,8 +60,15 @@ the sidebar tree) couldn't see it and showed "This page doesn't exist."
 Fixed by adding a small `addPage` action to `usePageStore` and calling it
 right after creation.
 
-**Known limitation:** only a page's _top-level_ blocks are captured.
-`Template.blocks` (Phase 0 data model) has no parent-child shape, so a
-toggle's nested children don't survive being saved into a template. Building
-that shape out felt like more scope than "save my meeting-notes structure"
-templates need right now.
+**Fixed: nested blocks now survive being saved into a template.**
+`Template.blocks` used to be flat (`Pick<Block, "type" | "content" |
+"order">[]`), so a toggle's children never made it into a saved template —
+previously documented here as a known limitation. `TemplateBlock` now adds
+a `children: TemplateBlock[]` to that same shape, and `createTemplateFromPage`
+/ `createPageFromTemplate` in `api/templates.ts` walk that tree recursively
+(via each block's `parentBlockId`) instead of only reading top-level
+blocks. `TemplatePreview` is intentionally left reading `template.blocks`
+flat, top-level only — it's a small decorative miniature, not a full
+render, and the templates that actually use toggles look the same in the
+gallery either way; the real nested content is there once "Use template"
+actually creates the page.

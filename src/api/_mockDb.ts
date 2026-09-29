@@ -9,6 +9,7 @@ import type {
   PageVersion,
   Tag,
   Template,
+  TemplateBlock,
   Workspace,
 } from "@/types/entities";
 
@@ -654,11 +655,18 @@ function seedDb(): MockDb {
     ...designProperties,
   ];
 
+  // Seed templates below are all flat (no toggle blocks), so every entry
+  // gets an empty `children` — this just saves writing `children: []` on
+  // every one of them by hand.
+  function flat(blocks: Omit<TemplateBlock, "children">[]): TemplateBlock[] {
+    return blocks.map((b) => ({ ...b, children: [] }));
+  }
+
   const meetingTemplate: Template = {
     id: "template-meeting-notes",
     workspaceId: DEFAULT_WORKSPACE_ID,
     name: "Meeting notes",
-    blocks: [
+    blocks: flat([
       { type: "heading2", content: { html: "Meeting notes" }, order: 0 },
       { type: "paragraph", content: { html: "<strong>Date:</strong> " }, order: 1 },
       { type: "paragraph", content: { html: "<strong>Attendees:</strong> " }, order: 2 },
@@ -666,14 +674,14 @@ function seedDb(): MockDb {
       { type: "bulletList", content: { html: "" }, order: 4 },
       { type: "heading3", content: { html: "Action items" }, order: 5 },
       { type: "checklist", content: { html: "", checked: false }, order: 6 },
-    ],
+    ]),
   };
 
   const projectBriefTemplate: Template = {
     id: "template-project-brief",
     workspaceId: DEFAULT_WORKSPACE_ID,
     name: "Project brief",
-    blocks: [
+    blocks: flat([
       { type: "heading2", content: { html: "Project brief" }, order: 0 },
       { type: "paragraph", content: { html: "<strong>Summary:</strong> " }, order: 1 },
       { type: "heading3", content: { html: "Goals" }, order: 2 },
@@ -692,14 +700,14 @@ function seedDb(): MockDb {
         order: 7,
       },
       { type: "callout", content: { html: "Risks: " }, order: 8 },
-    ],
+    ]),
   };
 
   const weeklyPlannerTemplate: Template = {
     id: "template-weekly-planner",
     workspaceId: DEFAULT_WORKSPACE_ID,
     name: "Weekly planner",
-    blocks: [
+    blocks: flat([
       { type: "heading2", content: { html: "Week of " }, order: 0 },
       {
         type: "table",
@@ -719,14 +727,14 @@ function seedDb(): MockDb {
       { type: "checklist", content: { html: "", checked: false }, order: 3 },
       { type: "checklist", content: { html: "", checked: false }, order: 4 },
       { type: "checklist", content: { html: "", checked: false }, order: 5 },
-    ],
+    ]),
   };
 
   const readingNotesTemplate: Template = {
     id: "template-reading-notes",
     workspaceId: DEFAULT_WORKSPACE_ID,
     name: "Reading notes",
-    blocks: [
+    blocks: flat([
       { type: "heading2", content: { html: "" }, order: 0 },
       { type: "paragraph", content: { html: "<strong>Author:</strong> " }, order: 1 },
       { type: "quote", content: { html: "" }, order: 2 },
@@ -736,14 +744,14 @@ function seedDb(): MockDb {
       { type: "numberedList", content: { html: "" }, order: 6 },
       { type: "heading3", content: { html: "My rating" }, order: 7 },
       { type: "paragraph", content: { html: "" }, order: 8 },
-    ],
+    ]),
   };
 
   const designCritiqueTemplate: Template = {
     id: "template-design-critique",
     workspaceId: DEFAULT_WORKSPACE_ID,
     name: "Design critique",
-    blocks: [
+    blocks: flat([
       { type: "heading2", content: { html: "Design critique" }, order: 0 },
       {
         type: "paragraph",
@@ -756,7 +764,7 @@ function seedDb(): MockDb {
       { type: "bulletList", content: { html: "" }, order: 5 },
       { type: "heading3", content: { html: "Follow-ups" }, order: 6 },
       { type: "checklist", content: { html: "", checked: false }, order: 7 },
-    ],
+    ]),
   };
 
   // A board block's "children" are its columns/cards, all nested inside
@@ -768,7 +776,7 @@ function seedDb(): MockDb {
     id: "template-todo-board",
     workspaceId: DEFAULT_WORKSPACE_ID,
     name: "Todo board",
-    blocks: [
+    blocks: flat([
       { type: "heading2", content: { html: "Todo board" }, order: 0 },
       {
         type: "paragraph",
@@ -799,14 +807,14 @@ function seedDb(): MockDb {
         },
         order: 2,
       },
-    ],
+    ]),
   };
 
   const bugTrackerTemplate: Template = {
     id: "template-bug-tracker",
     workspaceId: DEFAULT_WORKSPACE_ID,
     name: "Bug tracker",
-    blocks: [
+    blocks: flat([
       { type: "heading2", content: { html: "Bug tracker" }, order: 0 },
       {
         type: "paragraph",
@@ -824,14 +832,14 @@ function seedDb(): MockDb {
         },
         order: 2,
       },
-    ],
+    ]),
   };
 
   const dailyJournalTemplate: Template = {
     id: "template-daily-journal",
     workspaceId: DEFAULT_WORKSPACE_ID,
     name: "Daily journal",
-    blocks: [
+    blocks: flat([
       { type: "heading2", content: { html: "Journal entry" }, order: 0 },
       { type: "paragraph", content: { html: "<strong>Date:</strong> " }, order: 1 },
       { type: "heading3", content: { html: "How am I feeling today?" }, order: 2 },
@@ -843,7 +851,7 @@ function seedDb(): MockDb {
       { type: "bulletList", content: { html: "" }, order: 8 },
       { type: "bulletList", content: { html: "" }, order: 9 },
       { type: "bulletList", content: { html: "" }, order: 10 },
-    ],
+    ]),
   };
 
   return {
@@ -946,6 +954,45 @@ export function networkDelay(ms = 220): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** How long a trashed page is kept before it's purged for good. Duplicated
+ * from `api/pages.ts` as a plain number rather than imported, so this module
+ * stays a pure persistence layer with no dependency on the api surface above
+ * it (which depends on this one). */
+const TRASH_RETENTION_DAYS = 30;
+
+/** Removes every page that has been in the trash longer than the retention
+ * window, along with its blocks, links, tags and properties. Runs on startup:
+ * a browser tab can be closed for weeks, so "30 days" has to be measured
+ * against the clock at load time, not only while the app is open. */
+function purgeExpiredTrash(db: MockDb): boolean {
+  const cutoff = Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const expired = Object.values(db.pages).filter((page) => {
+    if (!page.deletedAt) return false;
+    const deletedAt = Date.parse(page.deletedAt);
+    return Number.isNaN(deletedAt) || deletedAt < cutoff;
+  });
+  if (expired.length === 0) return false;
+
+  const expiredIds = new Set(expired.map((page) => page.id));
+  for (const id of expiredIds) delete db.pages[id];
+  for (const b of Object.values(db.blocks)) {
+    if (expiredIds.has(b.pageId)) delete db.blocks[b.id];
+  }
+  for (const link of Object.values(db.links)) {
+    if (expiredIds.has(link.sourcePageId) || expiredIds.has(link.targetPageId)) {
+      delete db.links[link.id];
+    }
+  }
+  for (const pageTag of Object.values(db.pageTags)) {
+    if (expiredIds.has(pageTag.pageId))
+      delete db.pageTags[`${pageTag.pageId}:${pageTag.tagId}`];
+  }
+  for (const property of Object.values(db.pageProperties)) {
+    if (expiredIds.has(property.pageId)) delete db.pageProperties[property.id];
+  }
+  return true;
+}
+
 /**
  * Hydrates the in-memory cache from IndexedDB. Call once, before the app
  * renders (see main.tsx) — every mockDb.read()/write() call before this
@@ -959,7 +1006,11 @@ export async function initDb(): Promise<void> {
   try {
     const stored = await idbGet<Partial<MockDb>>(IDB_KEY);
     if (stored) {
-      cachedDb = normalizeDb(stored);
+      const db = normalizeDb(stored);
+      // Persist the sweep immediately: otherwise a page sitting in the trash
+      // past its window would be re-examined on every single startup.
+      if (purgeExpiredTrash(db)) await idbSet(IDB_KEY, db);
+      cachedDb = db;
       return;
     }
 
@@ -967,6 +1018,7 @@ export async function initDb(): Promise<void> {
     const legacyRaw = localStorage.getItem(LEGACY_LOCALSTORAGE_KEY);
     if (legacyRaw) {
       const migrated = normalizeDb(JSON.parse(legacyRaw) as Partial<MockDb>);
+      purgeExpiredTrash(migrated);
       cachedDb = migrated;
       await idbSet(IDB_KEY, migrated);
       localStorage.removeItem(LEGACY_LOCALSTORAGE_KEY);

@@ -24,7 +24,6 @@ function minimalDb(page: Page) {
 }
 
 beforeEach(async () => {
-  localStorage.clear();
   await idbDelete(IDB_KEY);
 });
 
@@ -78,5 +77,45 @@ describe("initDb", () => {
 
     expect(mockDb.read().pages["page-persisted"]).toBeDefined();
     expect(mockDb.read().pages["page-welcome"]).toBeUndefined();
+  });
+
+  it("permanently purges a page trashed more than 30 days ago", async () => {
+    const fortyDaysAgo = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString();
+    const oldTrashedPage: Page = {
+      id: "page-old-trash",
+      workspaceId: "default",
+      parentId: null,
+      title: "Long gone",
+      isFavorite: false,
+      deletedAt: fortyDaysAgo,
+      order: 0,
+      createdAt: fortyDaysAgo,
+      updatedAt: fortyDaysAgo,
+    };
+    await idbSet(IDB_KEY, minimalDb(oldTrashedPage));
+
+    await initDb();
+
+    expect(mockDb.read().pages["page-old-trash"]).toBeUndefined();
+  });
+
+  it("keeps a page trashed more recently than the retention window", async () => {
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const recentlyTrashedPage: Page = {
+      id: "page-recent-trash",
+      workspaceId: "default",
+      parentId: null,
+      title: "Still in Trash",
+      isFavorite: false,
+      deletedAt: fiveDaysAgo,
+      order: 0,
+      createdAt: fiveDaysAgo,
+      updatedAt: fiveDaysAgo,
+    };
+    await idbSet(IDB_KEY, minimalDb(recentlyTrashedPage));
+
+    await initDb();
+
+    expect(mockDb.read().pages["page-recent-trash"]).toBeDefined();
   });
 });

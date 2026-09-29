@@ -31,6 +31,10 @@ export interface Page {
   /** Set only on auto-created daily notes, as a "YYYY-MM-DD" local-date key.
    * A regular page created by hand never has this. */
   dailyNoteDate?: string;
+  /** Set when the page is moved to the trash. A trashed page keeps its row
+   * (and its subtree) so it can be restored; pages past the retention
+   * window are purged on startup. See `api/pages.ts` and `initDb()`. */
+  deletedAt?: string;
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -52,6 +56,7 @@ export type BlockType =
   | "image"
   | "table"
   | "board"
+  | "file"
   | "embed"
   | "database";
 
@@ -108,6 +113,8 @@ export interface PageProperty {
   key: string;
   type: PagePropertyType;
   value: string | number | boolean | null;
+  /** Choices for a `select` property. Unset → the shared preset list (see `lib/properties.ts`), which is what every select property had before options existed. */
+  options?: string[];
 }
 
 /**
@@ -121,12 +128,27 @@ export interface Link {
   sourceBlockId?: Block["id"];
 }
 
+/**
+ * A block captured into a template — mirrors the subset of `Block` a
+ * template needs (no `id`/`pageId`/`parentBlockId`, which only make sense
+ * once instantiated onto a real page) plus its own nested children, so a
+ * toggle's contents survive being saved into a template. See
+ * `api/templates.ts` for how this tree is built and re-instantiated.
+ */
+export interface TemplateBlock {
+  type: Block["type"];
+  content: Block["content"];
+  order: number;
+  children: TemplateBlock[];
+}
+
 export interface Template {
   id: string;
   workspaceId: Workspace["id"];
   name: string;
   icon?: string;
-  blocks: Pick<Block, "type" | "content" | "order">[];
+  /** Top-level blocks only — each one's `children` carries its nested tree. */
+  blocks: TemplateBlock[];
 }
 
 export interface PageVersion {

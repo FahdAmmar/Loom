@@ -64,6 +64,7 @@ export async function getBacklinks(pageId: string): Promise<BacklinkResult[]> {
     if (link.targetPageId !== pageId) continue;
     const sourcePage = db.pages[link.sourcePageId];
     if (!sourcePage) continue; // orphaned — source page was deleted without cleanup
+    if (sourcePage.deletedAt) continue; // trashed pages keep their rows, so they're still here
     results.push({
       link,
       sourcePage: { id: sourcePage.id, title: sourcePage.title, icon: sourcePage.icon },
@@ -73,10 +74,16 @@ export async function getBacklinks(pageId: string): Promise<BacklinkResult[]> {
   return results;
 }
 
-/** Every link in the workspace — the Graph View's edge list. */
+/** Every link in the workspace — the Graph View's edge list. A trashed page
+ * keeps its Link rows so it can be restored intact, so they're filtered out
+ * here rather than deleted at delete time. */
 export async function listAllLinks(): Promise<Link[]> {
   await networkDelay();
-  return Object.values(mockDb.read().links);
+  const db = mockDb.read();
+  return Object.values(db.links).filter(
+    (link) =>
+      !db.pages[link.sourcePageId]?.deletedAt && !db.pages[link.targetPageId]?.deletedAt,
+  );
 }
 
 /**

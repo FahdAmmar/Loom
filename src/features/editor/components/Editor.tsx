@@ -15,6 +15,7 @@ import { EditorFocusProvider } from "@/features/editor/EditorFocusContext";
 import { EditorSkeleton } from "@/features/editor/components/EditorSkeleton";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
 import { getOrderedBlocks } from "@/lib/blocks";
+import { EDITOR_WIDTH_CLASSES, useSettingsStore } from "@/stores/useSettingsStore";
 import { useEditorStore } from "@/stores/useEditorStore";
 
 function EditorBody({ pageId }: { pageId: string }) {
@@ -23,6 +24,7 @@ function EditorBody({ pageId }: { pageId: string }) {
   const blocksById = useEditorStore((s) => s.blocksById);
   const createBlock = useEditorStore((s) => s.createBlock);
   const reorderBlock = useEditorStore((s) => s.reorderBlock);
+  const editorWidth = useSettingsStore((s) => s.editorWidth);
   const { focus } = useEditorFocus();
 
   const seededPageIdRef = useRef<string | null>(null);
@@ -83,7 +85,7 @@ function EditorBody({ pageId }: { pageId: string }) {
   if (isLoading) return <EditorSkeleton />;
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-6">
+    <div className={`mx-auto px-6 py-6 ${EDITOR_WIDTH_CLASSES[editorWidth]}`}>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}

@@ -1,13 +1,12 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { SelectionToolbar } from "@/features/editor/components/SelectionToolbar";
 import { WikilinkMenu } from "@/features/editor/components/WikilinkMenu";
 import { PageLinkNode } from "@/features/editor/nodes/pageLinkNode";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
-import { detectMentionTrigger } from "@/lib/blocks";
 import { cn } from "@/lib/utils";
 import { usePageStore } from "@/stores/usePageStore";
 import type { BlockType, Page } from "@/types/entities";
@@ -101,7 +100,6 @@ export function BlockTextEditor({
         codeBlock: false,
         horizontalRule: false,
       }),
-      Underline,
       PageLinkNode,
     ],
     content: html,
@@ -191,9 +189,7 @@ export function BlockTextEditor({
         onSlashStateChange({ open: false, query: "" });
       }
 
-      // Wikilink/mention trigger — can trigger anywhere in the text, not
-      // just at the start. "[[" is the primary trigger; "@" is a shorter
-      // alias for the same flow (see detectMentionTrigger).
+      // Wikilink — can trigger anywhere in the text, not just at the start.
       const { $from } = e.state.selection;
       const textBeforeCursor = $from.parent.textBetween(
         0,
@@ -201,15 +197,15 @@ export function BlockTextEditor({
         undefined,
         "\ufffc",
       );
-      const trigger = detectMentionTrigger(textBeforeCursor);
-      if (trigger) {
+      const wikilinkMatch = /\[\[([^[\]]*)$/.exec(textBeforeCursor);
+      if (wikilinkMatch) {
         isWikilinkOpenRef.current = true;
         setWikilinkActiveIndex(0);
         const coords = e.view.coordsAtPos(e.state.selection.from);
-        const matchStart = $from.pos - trigger.length;
+        const matchStart = $from.pos - wikilinkMatch[0].length;
         setWikilinkState({
           open: true,
-          query: trigger.query,
+          query: wikilinkMatch[1],
           coords: { x: coords.left, y: coords.bottom },
           range: { from: matchStart, to: $from.pos },
         });
@@ -267,6 +263,7 @@ export function BlockTextEditor({
         </span>
       )}
       <EditorContent editor={editor} className={cn("prose-block", className)} />
+      {editor && <SelectionToolbar editor={editor} />}
       {wikilinkState.open && wikilinkState.coords && (
         <WikilinkMenu
           pages={matchingPages}

@@ -1,5 +1,6 @@
 import { ApiError } from "@/api/client";
 import { mockDb, networkDelay } from "@/api/_mockDb";
+import { parseOptionList } from "@/lib/properties";
 import type { PageProperty, PagePropertyType } from "@/types/entities";
 
 export async function getPropertiesForPage(pageId: string): Promise<PageProperty[]> {
@@ -19,6 +20,7 @@ export async function addProperty(
   pageId: string,
   key: string,
   type: PagePropertyType,
+  options?: string[],
 ): Promise<PageProperty> {
   await networkDelay(100);
   const db = mockDb.read();
@@ -32,6 +34,9 @@ export async function addProperty(
     type,
     value: type === "checkbox" ? false : null,
   };
+  // Only a select has choices; an empty list means "use the shared preset".
+  if (type === "select" && options?.length)
+    property.options = parseOptionList(options.join(","));
   db.pageProperties[property.id] = property;
   mockDb.write(db);
   return property;
@@ -73,6 +78,26 @@ export async function updatePropertyValue(
   if (!existing) throw new ApiError(`No property found with id "${id}".`, 404);
 
   const updated: PageProperty = { ...existing, value };
+  db.pageProperties[id] = updated;
+  mockDb.write(db);
+  return updated;
+}
+
+/** Replaces a select property's choices. An empty list reverts it to the shared preset; its current value is left untouched either way. */
+export async function updatePropertyOptions(
+  id: string,
+  options: string[],
+): Promise<PageProperty> {
+  await networkDelay(90);
+  const db = mockDb.read();
+  const existing = db.pageProperties[id];
+  if (!existing) throw new ApiError(`No property found with id "${id}".`, 404);
+  if (existing.type !== "select")
+    throw new ApiError("Only select properties have options.", 400);
+
+  const cleaned = parseOptionList(options.join(","));
+  const { options: _previous, ...rest } = existing;
+  const updated: PageProperty = cleaned.length ? { ...rest, options: cleaned } : rest;
   db.pageProperties[id] = updated;
   mockDb.write(db);
   return updated;

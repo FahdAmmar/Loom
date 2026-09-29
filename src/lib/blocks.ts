@@ -72,11 +72,15 @@ export function extractPlainText(block: Block): string {
   return "";
 }
 
+/** How much text `buildSnippet` keeps on each side of a match. Exported so
+ * callers that also need to report a highlight offset *into the snippet*
+ * (see `api/search.ts`) can stay in step with it. */
+export const SNIPPET_RADIUS = 40;
+
 /** Short excerpt around a match, with an ellipsis on whichever side got cut off. */
 export function buildSnippet(text: string, matchIndex: number, matchLength: number): string {
-  const radius = 40;
-  const start = Math.max(0, matchIndex - radius);
-  const end = Math.min(text.length, matchIndex + matchLength + radius);
+  const start = Math.max(0, matchIndex - SNIPPET_RADIUS);
+  const end = Math.min(text.length, matchIndex + matchLength + SNIPPET_RADIUS);
   const prefix = start > 0 ? "…" : "";
   const suffix = end < text.length ? "…" : "";
   return `${prefix}${text.slice(start, end).trim()}${suffix}`;

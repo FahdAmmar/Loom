@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code — personal, machine-local config (not shared with the team)
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/agent-memory-local/

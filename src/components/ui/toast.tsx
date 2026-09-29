@@ -1,15 +1,24 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
-import { ToastContext, type ToastApi, type ToastVariant } from "@/hooks/useToast";
+import {
+  ToastContext,
+  type ToastAction,
+  type ToastApi,
+  type ToastVariant,
+} from "@/hooks/useToast";
 
 interface ToastItem {
   id: string;
   message: string;
   variant: ToastVariant;
+  action?: ToastAction;
 }
 
 const AUTO_DISMISS_MS = 3200;
+// A toast offering "Undo" needs more than a glance to act on — give it
+// noticeably longer before it disappears than a plain confirmation.
+const AUTO_DISMISS_WITH_ACTION_MS = 6000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -25,12 +34,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toast = useCallback(
-    (message: string, variant: ToastVariant = "default") => {
+    (message: string, variant: ToastVariant = "default", action?: ToastAction) => {
       const id = crypto.randomUUID();
-      setItems((prev) => [...prev, { id, message, variant }]);
+      setItems((prev) => [...prev, { id, message, variant, action }]);
       timers.current.set(
         id,
-        setTimeout(() => dismiss(id), AUTO_DISMISS_MS),
+        setTimeout(() => dismiss(id), action ? AUTO_DISMISS_WITH_ACTION_MS : AUTO_DISMISS_MS),
       );
     },
     [dismiss],
@@ -57,6 +66,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <AlertCircle className="text-destructive size-4 shrink-0" />
             )}
             {item.message}
+            {item.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  item.action?.onClick();
+                  dismiss(item.id);
+                }}
+                className="text-brand-violet -my-1 ml-1 shrink-0 font-medium hover:underline"
+              >
+                {item.action.label}
+              </button>
+            )}
           </div>
         ))}
       </output>

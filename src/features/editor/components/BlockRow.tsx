@@ -13,9 +13,8 @@ import {
 import { BoardBlockView } from "@/features/editor/components/BoardBlockView";
 import { CodeBlockView } from "@/features/editor/components/CodeBlockView";
 import { DividerView } from "@/features/editor/components/DividerView";
-import { EmbedBlockView } from "@/features/editor/components/EmbedBlockView";
+import { FileBlockView } from "@/features/editor/components/FileBlockView";
 import { ImageBlockView } from "@/features/editor/components/ImageBlockView";
-import { DatabaseBlockView } from "@/features/database/components/DatabaseBlockView";
 import { SlashMenu } from "@/features/editor/components/SlashMenu";
 import { TableBlockView } from "@/features/editor/components/TableBlockView";
 import { TextBlockView } from "@/features/editor/components/TextBlockView";
@@ -23,6 +22,8 @@ import { ToggleBlockView } from "@/features/editor/components/ToggleBlockView";
 import { BlockList } from "@/features/editor/components/BlockList";
 import { useBlockEditingHandlers } from "@/features/editor/useBlockEditingHandlers";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
+import { useToast } from "@/hooks/useToast";
+import { readTableContent } from "@/lib/table";
 import { useEditorStore } from "@/stores/useEditorStore";
 import type { Block, BoardColumn } from "@/types/entities";
 
@@ -42,6 +43,7 @@ export const BlockRow = memo(function BlockRow({
   const createBlock = useEditorStore((s) => s.createBlock);
   const updateBlockContent = useEditorStore((s) => s.updateBlockContent);
   const deleteBlock = useEditorStore((s) => s.deleteBlock);
+  const undoDeleteBlock = useEditorStore((s) => s.undoDeleteBlock);
   const moveBlock = useEditorStore((s) => s.moveBlock);
   // Scoped to a derived boolean rather than the whole blocksById map — Zustand
   // only re-renders this component when the *answer* changes (a child was
@@ -54,6 +56,15 @@ export const BlockRow = memo(function BlockRow({
   const collapsedToggleIds = useEditorStore((s) => s.collapsedToggleIds);
   const toggleExpanded = useEditorStore((s) => s.toggleExpanded);
   const { focus } = useEditorFocus();
+  const { toast } = useToast();
+
+  async function handleDelete() {
+    const snapshot = await deleteBlock(block.id);
+    toast("Block deleted", "default", {
+      label: "Undo",
+      onClick: () => undoDeleteBlock(snapshot),
+    });
+  }
 
   const {
     handlers,
@@ -125,10 +136,12 @@ export const BlockRow = memo(function BlockRow({
         />
       );
       break;
-    case "embed":
+    case "file":
       content = (
-        <EmbedBlockView
+        <FileBlockView
           url={typeof block.content.url === "string" ? block.content.url : ""}
+          name={typeof block.content.name === "string" ? block.content.name : undefined}
+          size={typeof block.content.size === "number" ? block.content.size : undefined}
           onChange={(next) => updateBlockContent(block.id, next)}
           onBackspaceEmpty={handlers.onBackspaceEmpty}
         />
@@ -137,15 +150,8 @@ export const BlockRow = memo(function BlockRow({
     case "table":
       content = (
         <TableBlockView
-          rows={
-            Array.isArray(block.content.rows)
-              ? (block.content.rows as string[][])
-              : [
-                  ["", ""],
-                  ["", ""],
-                ]
-          }
-          onChange={(next) => updateBlockContent(block.id, next)}
+          table={readTableContent(block.content)}
+          onChange={(next) => updateBlockContent(block.id, { ...next })}
         />
       );
       break;
@@ -158,11 +164,6 @@ export const BlockRow = memo(function BlockRow({
           onChange={(next) => updateBlockContent(block.id, next)}
         />
       );
-      break;
-    case "database":
-      // A database block reads its rows from live sub-pages, not from its
-      // own content — pageId (the page this block lives in) is all it needs.
-      content = <DatabaseBlockView pageId={pageId} />;
       break;
     case "toggle": {
       const isExpanded = !collapsedToggleIds[block.id];
@@ -231,7 +232,7 @@ export const BlockRow = memo(function BlockRow({
               Move down
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={() => deleteBlock(block.id)}>
+            <DropdownMenuItem variant="destructive" onSelect={handleDelete}>
               <Trash2 className="size-3.5" />
               Delete
             </DropdownMenuItem>

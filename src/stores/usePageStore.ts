@@ -22,9 +22,14 @@ interface PageState {
   addPage: (page: Page) => void;
   /** Drag-and-drop reorder/re-parent — see api/pages.ts movePage for the semantics. */
   movePage: (id: string, newParentId: string | null, newIndex: number) => Promise<void>;
+  duplicatePage: (id: string) => Promise<Page>;
   renamePage: (id: string, title: string) => Promise<void>;
+  setPageIcon: (id: string, icon: string | undefined) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
-  deletePage: (id: string) => Promise<void>;
+  deletePage: (id: string) => Promise<pagesApi.PageDeletionSnapshot>;
+  /** Brings a page (and its descendants) back out of the trash. */
+  restorePage: (id: string) => Promise<void>;
+  undoDeletePage: (snapshot: pagesApi.PageDeletionSnapshot) => Promise<void>;
   setCurrentPage: (id: Page["id"] | null) => void;
   recordVisit: (id: Page["id"]) => void;
 }
@@ -74,6 +79,12 @@ export const usePageStore = create<PageState>()(
         }
       },
 
+      duplicatePage: async (id) => {
+        const page = await pagesApi.duplicatePage(id);
+        set((s) => ({ pagesById: { ...s.pagesById, [page.id]: page } }));
+        return page;
+      },
+
       renamePage: async (id, title) => {
         // Optimistic update — the title field is what users watch while typing.
         const previous = get().pagesById[id];
@@ -87,6 +98,20 @@ export const usePageStore = create<PageState>()(
           set((s) => ({ pagesById: { ...s.pagesById, [id]: updated } }));
         } catch {
           if (previous) set((s) => ({ pagesById: { ...s.pagesById, [id]: previous } }));
+        }
+      },
+
+      setPageIcon: async (id, icon) => {
+        // Same optimistic-then-reconcile shape as renamePage/toggleFavorite —
+        // the icon shows immediately in the header and the sidebar tree.
+        const previous = get().pagesById[id];
+        if (!previous) return;
+        set((s) => ({ pagesById: { ...s.pagesById, [id]: { ...previous, icon } } }));
+        try {
+          const updated = await pagesApi.updatePageIcon(id, icon);
+          set((s) => ({ pagesById: { ...s.pagesById, [id]: updated } }));
+        } catch {
+          set((s) => ({ pagesById: { ...s.pagesById, [id]: previous } }));
         }
       },
 
@@ -106,6 +131,9 @@ export const usePageStore = create<PageState>()(
       },
 
       deletePage: async (id) => {
+        // Captured before the delete so the caller can offer "Undo" —
+        // deletePage's own contract (which ids it removes) stays unchanged.
+        const snapshot = await pagesApi.getPageDeletionSnapshot(id);
         const removedIds = await pagesApi.deletePage(id);
         const removedSet = new Set(removedIds);
         set((s) => {
@@ -116,6 +144,28 @@ export const usePageStore = create<PageState>()(
             currentPageId: removedSet.has(s.currentPageId ?? "") ? null : s.currentPageId,
             recentPageIds: s.recentPageIds.filter((recentId) => !removedSet.has(recentId)),
           };
+        });
+        return snapshot;
+      },
+
+      undoDeletePage: async (snapshot) => {
+        await pagesApi.restorePagesFromSnapshot(snapshot);
+        set((s) => {
+          const next = { ...s.pagesById };
+          for (const page of snapshot.pages) next[page.id] = page;
+          return { pagesById: next };
+        });
+      },
+
+      /** Brings a trashed page back. Every descendant comes back with it, so
+       * all of them need re-adding to the cache — the store only ever holds
+       * live pages, so the trashed ones were dropped from it on delete. */
+      restorePage: async (id) => {
+        const restored = await pagesApi.restorePage(id);
+        set((s) => {
+          const next = { ...s.pagesById };
+          for (const page of restored) next[page.id] = page;
+          return { pagesById: next };
         });
       },
 

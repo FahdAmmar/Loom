@@ -36,7 +36,7 @@ export async function getOrCreateTodayNote(workspaceId: string): Promise<Page> {
   const db = mockDb.read();
 
   const existing = Object.values(db.pages).find(
-    (p) => p.workspaceId === workspaceId && p.dailyNoteDate === dateKey,
+    (p) => p.workspaceId === workspaceId && p.dailyNoteDate === dateKey && !p.deletedAt,
   );
   if (existing) return existing;
 

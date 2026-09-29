@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileDown, History, MoreHorizontal, Plus, Star, StarOff, Trash2 } from "lucide-react";
+import { Copy, MoreHorizontal, Plus, Star, StarOff, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -10,11 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import * as blocksApi from "@/api/blocks";
 import * as templatesApi from "@/api/templates";
-import { pageToMarkdown } from "@/features/markdown/exportMarkdown";
-import { VersionHistoryDialog } from "@/features/pages/components/VersionHistoryDialog";
-import { downloadTextFile, slugify } from "@/lib/downloadFile";
 import { getDescendantIds } from "@/lib/tree";
 import { useToast } from "@/hooks/useToast";
 import { usePageStore } from "@/stores/usePageStore";
@@ -39,11 +35,12 @@ export function PageActionsMenu({
   const pagesById = usePageStore((s) => s.pagesById);
   const isFavorite = usePageStore((s) => Boolean(s.pagesById[pageId]?.isFavorite));
   const createPage = usePageStore((s) => s.createPage);
+  const duplicatePage = usePageStore((s) => s.duplicatePage);
   const deletePage = usePageStore((s) => s.deletePage);
+  const undoDeletePage = usePageStore((s) => s.undoDeletePage);
   const toggleFavorite = usePageStore((s) => s.toggleFavorite);
   const { toast } = useToast();
   const [isConfirmingDelete, setConfirmingDelete] = useState(false);
-  const [isHistoryOpen, setHistoryOpen] = useState(false);
 
   const descendantCount = getDescendantIds(pagesById, pageId).length;
 
@@ -57,14 +54,9 @@ export function PageActionsMenu({
     toast(`Saved "${pageTitle}" as a template`, "success");
   }
 
-  async function handleExportMarkdown() {
-    const blocks = await blocksApi.listBlocks(pageId);
-    downloadTextFile(
-      `${slugify(pageTitle)}.md`,
-      pageToMarkdown(pageTitle, pageId, blocks),
-      "text/markdown",
-    );
-    toast(`Exported "${pageTitle}" as Markdown`, "success");
+  async function handleDuplicate() {
+    const copy = await duplicatePage(pageId);
+    navigate(`/w/${WORKSPACE_ID}/p/${copy.id}`, { viewTransition: true });
   }
 
   function handleDeleteSelect() {
@@ -75,14 +67,14 @@ export function PageActionsMenu({
     setTimeout(() => setConfirmingDelete(true), 0);
   }
 
-  function handleHistorySelect() {
-    setTimeout(() => setHistoryOpen(true), 0);
-  }
-
   async function handleConfirmDelete() {
     setConfirmingDelete(false);
-    await deletePage(pageId);
+    const snapshot = await deletePage(pageId);
     onDeleted?.();
+    toast(`Deleted "${pageTitle}"`, "default", {
+      label: "Undo",
+      onClick: () => undoDeletePage(snapshot),
+    });
   }
 
   return (
@@ -110,13 +102,9 @@ export function PageActionsMenu({
             <Plus className="size-3.5" />
             Save as template
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleExportMarkdown}>
-            <FileDown className="size-3.5" />
-            Export as Markdown
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleHistorySelect}>
-            <History className="size-3.5" />
-            Version history
+          <DropdownMenuItem onSelect={handleDuplicate}>
+            <Copy className="size-3.5" />
+            Duplicate
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={handleDeleteSelect}>
@@ -138,12 +126,6 @@ export function PageActionsMenu({
         variant="destructive"
         onConfirm={handleConfirmDelete}
         onCancel={() => setConfirmingDelete(false)}
-      />
-
-      <VersionHistoryDialog
-        pageId={pageId}
-        open={isHistoryOpen}
-        onClose={() => setHistoryOpen(false)}
       />
     </>
   );

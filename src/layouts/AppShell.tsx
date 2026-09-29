@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import { Outlet } from "react-router";
 
+import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { ToastProvider } from "@/components/ui/toast";
 import { CommandPalette } from "@/features/search/components/CommandPalette";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { usePageStore } from "@/stores/usePageStore";
+import { useShortcutsDialogStore } from "@/stores/useShortcutsDialogStore";
 import { useTagStore } from "@/stores/useTagStore";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 
@@ -17,6 +19,8 @@ export function AppShell() {
   const loadWorkspace = useWorkspaceStore((s) => s.loadWorkspace);
   const loadPages = usePageStore((s) => s.loadPages);
   const loadTags = useTagStore((s) => s.loadTags);
+  const isShortcutsOpen = useShortcutsDialogStore((s) => s.isOpen);
+  const closeShortcuts = useShortcutsDialogStore((s) => s.close);
   useGlobalShortcuts();
 
   useEffect(() => {
@@ -45,6 +49,7 @@ export function AppShell() {
           </main>
         </div>
         <CommandPalette />
+        <ShortcutsDialog open={isShortcutsOpen} onClose={closeShortcuts} />
       </div>
     </ToastProvider>
   );

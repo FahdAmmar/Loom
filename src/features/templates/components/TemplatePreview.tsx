@@ -1,4 +1,4 @@
-import { CheckSquare, Megaphone, PlaySquare, Square, Table2 as Table2Icon } from "lucide-react";
+import { CheckSquare, Megaphone, Paperclip, Square } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import type { Block, BoardColumn, Template } from "@/types/entities";
@@ -159,18 +159,15 @@ function renderBlock(block: PreviewBlock, key: number) {
       ) : null;
     }
 
-    case "embed":
-      // A live iframe would be wasted work in a gallery of scaled-down
-      // previews — this stays a static placeholder, same idea as the
-      // simplified 3-column board preview below.
+    case "file": {
+      const name = typeof block.content.name === "string" ? block.content.name : "Attachment";
       return (
-        <div
-          key={key}
-          className="bg-muted text-muted-foreground flex aspect-video items-center justify-center rounded-md"
-        >
-          <PlaySquare className="size-5" />
+        <div key={key} className="bg-muted flex items-center gap-1.5 rounded-md px-2 py-1.5">
+          <Paperclip className="text-text-faint size-3.5 shrink-0" />
+          <span className="truncate text-xs">{name}</span>
         </div>
       );
+    }
 
     case "board": {
       const columns = Array.isArray(block.content.columns)
@@ -203,19 +200,6 @@ function renderBlock(block: PreviewBlock, key: number) {
 
     case "toggle":
       return <Html key={key} html={block.content.html} className="text-sm font-medium" />;
-
-    case "database":
-      // A database block's rows come from live sub-pages of whatever page
-      // it ends up on — nothing meaningful to preview from template
-      // content alone, so this stays a static placeholder too.
-      return (
-        <div
-          key={key}
-          className="bg-muted text-muted-foreground flex h-12 items-center justify-center rounded-md"
-        >
-          <Table2Icon className="size-4" />
-        </div>
-      );
 
     default:
       return null;

@@ -16,7 +16,6 @@ function resetStore() {
 }
 
 beforeEach(() => {
-  localStorage.clear();
   resetStore();
 });
 

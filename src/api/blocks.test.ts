@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { ApiError } from "@/api/client";
 import * as blocksApi from "@/api/blocks";
 
 const PAGE_ID = "test-page";
+
+beforeEach(() => {});
 
 describe("createBlock", () => {
   it("appends a block at order 0 on an empty page", async () => {
@@ -138,6 +140,31 @@ describe("deleteBlock", () => {
 
   it("throws an ApiError for an unknown block id", async () => {
     await expect(blocksApi.deleteBlock("nope")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("getBlockDeletionSnapshot / restoreBlocksFromSnapshot", () => {
+  it("restores a deleted block (and its nested children) with the same ids, undoing deleteBlock", async () => {
+    const toggle = await blocksApi.createBlock({
+      pageId: PAGE_ID,
+      type: "toggle",
+      content: { html: "Toggle" },
+    });
+    const child = await blocksApi.createBlock({
+      pageId: PAGE_ID,
+      type: "paragraph",
+      content: { html: "child" },
+      parentBlockId: toggle.id,
+    });
+
+    const snapshot = await blocksApi.getBlockDeletionSnapshot(toggle.id);
+    await blocksApi.deleteBlock(toggle.id);
+    expect(await blocksApi.listBlocks(PAGE_ID)).toHaveLength(0);
+
+    await blocksApi.restoreBlocksFromSnapshot(snapshot);
+    const restored = await blocksApi.listBlocks(PAGE_ID);
+    expect(restored.map((b) => b.id).sort()).toEqual([child.id, toggle.id].sort());
+    expect(restored.find((b) => b.id === child.id)?.parentBlockId).toBe(toggle.id);
   });
 });
 

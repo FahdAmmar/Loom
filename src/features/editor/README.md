@@ -24,12 +24,10 @@
   hypothetical one
 - `useEditorStore` fully implemented (was a skeleton through Phase 1–2)
 
-**Since resolved:** page-level tags (not block-level — see the top-level
-README's scope note), real client-side image upload (data URI, since
-there's no backend), drag-and-drop block reordering, and `@` mentions
-(a shorter alias for `[[`, see `detectMentionTrigger` in `lib/blocks.ts`).
-
-**Still ahead:** richer tables (merge/resize/delete row-col).
+**Since this list was written:** drag-and-drop reordering (see Phase 8
+below), image upload (as a data URI — no backend needed), file
+attachments, and richer tables have all landed; this paragraph is left
+as the record of what Phase 4 deferred, not of what's missing now.
 
 **Implemented (Phase 4):**
 
@@ -226,3 +224,55 @@ field, not `name`, once it also carries an ARIA role — confirmed via
 through correctly; the exact "name vs. value" split for an editable
 heading is a genuinely unsettled pattern across screen readers, not a
 gap specific to this implementation).
+
+## Formatting toolbar
+
+`SelectionToolbar` (`components/SelectionToolbar.tsx`) is Tiptap's
+`BubbleMenu`, mounted once per `BlockTextEditor`. It appears over a text
+selection with bold / italic / underline / strikethrough / code and a
+link button — the marks were always there (StarterKit ships them, and
+the keyboard shortcuts worked), but nothing on screen said so.
+
+- Buttons `preventDefault` on `mousedown` so clicking one doesn't collapse
+  the selection or steal focus from the editor.
+- The link button swaps the toolbar for a small inline input. What's typed
+  goes through `normalizeLinkUrl` (`lib/url.ts`): a bare `example.com`
+  becomes `https://example.com/`; anything that isn't `http`, `https` or
+  `mailto` (`javascript:`, `data:`, `file:` …) is refused, since the value
+  ends up in an `<a href>` inside stored HTML.
+- The menu is portalled to `document.body` so a block's own overflow can
+  never clip it.
+- `@tiptap/extension-bubble-menu` is declared as a direct dependency: it is
+  only an _optional_ dependency of `@tiptap/react`, so relying on it being
+  there transitively would be fragile. The redundant explicit
+  `@tiptap/extension-underline` was dropped at the same time — StarterKit v3
+  already includes it (it was registering `underline` twice).
+
+## Tables
+
+A table is still `{ rows: string[][] }` — the shape the plain-text search,
+the markdown export and the template preview already read — with two
+optional extras: `colWidths` (pixels per column) and `merges`
+(`{ row, col, rowSpan, colSpan }` rectangles). All the logic lives in
+`lib/table.ts` as pure functions (insert / delete a row or column, merge,
+split, resize) and is what the tests cover; `TableBlockView` is a thin
+shell over it.
+
+- **Toolbar** (shown on hover or focus, acts on the last-focused cell):
+  insert row above/below, insert column left/right, delete row/column,
+  merge with the cell to the right / below, split a merged cell.
+- **Merging** stores the joined text in the merge's top-left "anchor" cell
+  and leaves every other covered cell as `""`, so code that knows nothing
+  about merges still sees sensible text. Merges can grow step by step;
+  merging across the edge of an existing merge is refused rather than
+  slicing it, while one fully inside the new rectangle is absorbed.
+- **Insert/delete adjust merges**: inserting inside a merge grows it,
+  inserting before pushes it along, deleting shrinks it (dropping it at 1×1),
+  and deleting a merge's anchor line hands its text to the next line.
+  The last remaining row and column can't be deleted.
+- **Resizing**: drag the edge of a column, or focus its handle and use ←/→
+  (16px steps). Widths are clamped to 64–640px. The first resize measures
+  the columns as rendered so the others don't jump.
+- **Known limitation:** the markdown export has no syntax for merged cells,
+  so a merged cell exports its text in the anchor cell and blanks for the
+  rest, and column widths aren't exported at all.

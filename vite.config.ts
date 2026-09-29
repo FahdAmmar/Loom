@@ -16,5 +16,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // `.kilo/worktrees/` holds a duplicate checkout of this repo. Without
+    // this, vitest collects a second, stale copy of every test file and
+    // roughly doubles the reported failure count.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.kilo/**"],
   },
 });

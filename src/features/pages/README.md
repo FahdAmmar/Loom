@@ -37,4 +37,15 @@ fundamentally an editing-surface concern; this feature only consumes the
   `PageProperty` an options schema, and adding one felt like scope creep for
   what's meant to be a basic property editor
 
-**Still ahead:** drag-to-reorder pages, per-property custom option lists.
+**Since this list was written:** drag-to-reorder pages (see the sidebar
+section) and per-property option lists have both landed.
+
+**Select options.** A `select` property can carry its own `options: string[]`
+(`PageProperty.options`), typed as a comma-separated list when the property
+is added and editable afterwards from the pencil next to it. Parsing lives in
+`lib/properties.ts`: trimmed, empties and case-insensitive duplicates
+dropped, at most 20 options of 40 characters. A property with no options of
+its own still shows the old shared preset (Not started / In progress /
+Published / Archived), so every existing property behaves exactly as before.
+If a property's current value stops being one of its options after an edit,
+it stays in the dropdown as an extra entry rather than silently vanishing.

@@ -1,34 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
 import {
-  CalendarDays,
   FilePlus,
   FileText,
-  FileUp,
+  Keyboard,
   Moon,
   Network,
   PanelLeft,
   Search,
   Settings,
   Sun,
+  Tag,
 } from "lucide-react";
 import { useNavigate } from "react-router";
 
-import * as blocksApi from "@/api/blocks";
-import * as dailyNotesApi from "@/api/dailyNotes";
-import * as linksApi from "@/api/links";
 import * as searchApi from "@/api/search";
 import type { SearchResult } from "@/api/search";
 import { Dialog } from "@/components/ui/dialog";
-import {
-  extractTitleFromMarkdown,
-  extractWikilinkTitles,
-  markdownToBlocks,
-} from "@/features/markdown/importMarkdown";
 import { useTheme } from "@/hooks/useTheme";
-import { useToast } from "@/hooks/useToast";
-import { extractPageLinkIdsFromHtml } from "@/lib/blocks";
 import { useSearchStore } from "@/stores/useSearchStore";
+import { useShortcutsDialogStore } from "@/stores/useShortcutsDialogStore";
 import { useSidebarStore } from "@/stores/useSidebarStore";
 import { usePageStore } from "@/stores/usePageStore";
 
@@ -36,7 +26,14 @@ const WORKSPACE_ID = "default";
 
 type PaletteItem =
   | { kind: "action"; id: string; label: string; icon: typeof Search; run: () => void }
-  | { kind: "page"; id: string; label: string; snippet?: string; pageId: string }
+  | {
+      kind: "page";
+      id: string;
+      label: string;
+      snippet?: string;
+      tagName?: string;
+      pageId: string;
+    }
   | { kind: "create"; id: string; label: string };
 
 export function CommandPalette() {
@@ -44,18 +41,16 @@ export function CommandPalette() {
   const close = useSearchStore((s) => s.closeCommandPalette);
   const navigate = useNavigate();
   const createPage = usePageStore((s) => s.createPage);
-  const addPage = usePageStore((s) => s.addPage);
   const pagesById = usePageStore((s) => s.pagesById);
   const recentPageIds = usePageStore((s) => s.recentPageIds);
   const toggleSidebarCollapsed = useSidebarStore((s) => s.toggleCollapsed);
+  const openShortcuts = useShortcutsDialogStore((s) => s.open);
   const { resolvedTheme, setTheme } = useTheme();
-  const { toast } = useToast();
 
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [pageResults, setPageResults] = useState<SearchResult[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset to a clean slate every time the palette opens, and focus the input
   // once the native <dialog> has finished opening.
@@ -88,74 +83,6 @@ export function CommandPalette() {
     navigate(`/w/${WORKSPACE_ID}/p/${page.id}`, { viewTransition: true });
   }
 
-  async function handleTodayNote() {
-    close();
-    // getOrCreateTodayNote persists straight to the mock DB, bypassing
-    // usePageStore.createPage — sync it in manually, same as the "use
-    // template" flow does.
-    const page = await dailyNotesApi.getOrCreateTodayNote(WORKSPACE_ID);
-    addPage(page);
-    navigate(`/w/${WORKSPACE_ID}/p/${page.id}`, { viewTransition: true });
-  }
-
-  function handleImportMarkdown() {
-    close();
-    importFileInputRef.current?.click();
-  }
-
-  async function handleMarkdownFileSelected(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // lets the same file be re-picked after a failed import
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const title =
-        extractTitleFromMarkdown(text) ?? file.name.replace(/\.(md|markdown)$/i, "");
-
-      // Resolve every [[Title]] mention to a real page — creating any
-      // that don't already exist — *before* converting content, so
-      // markdownToBlocks itself is just a synchronous lookup.
-      const titleToPageId = new Map<string, string>();
-      for (const page of Object.values(pagesById)) {
-        titleToPageId.set(page.title.toLowerCase(), page.id);
-      }
-      for (const wikilinkTitle of extractWikilinkTitles(text)) {
-        const key = wikilinkTitle.toLowerCase();
-        if (titleToPageId.has(key)) continue;
-        // Sequential on purpose: createPage reads the current sibling
-        // count to assign each new page's order — running these in
-        // parallel would have every call read the same "before" count
-        // and race on it, unlike the independent syncBlockLinks calls below.
-        // oxlint-disable-next-line no-await-in-loop
-        const created = await createPage(WORKSPACE_ID, null, wikilinkTitle);
-        titleToPageId.set(key, created.id);
-      }
-
-      const drafts = markdownToBlocks(text, (t) => titleToPageId.get(t.toLowerCase()) ?? null);
-      const page = await createPage(WORKSPACE_ID, null, title);
-      const blocks = await blocksApi.createBlocks(page.id, drafts);
-
-      // Sync [[links]] for every imported block that has one, so
-      // backlinks work immediately rather than only after the next edit.
-      await Promise.all(
-        blocks.map((block) => {
-          const html = block.content.html;
-          if (typeof html !== "string") return Promise.resolve();
-          return linksApi.syncBlockLinks(page.id, block.id, extractPageLinkIdsFromHtml(html));
-        }),
-      );
-
-      navigate(`/w/${WORKSPACE_ID}/p/${page.id}`, { viewTransition: true });
-      toast(
-        `Imported "${title}" (${blocks.length} block${blocks.length === 1 ? "" : "s"}).`,
-        "success",
-      );
-    } catch {
-      toast("Couldn't import that file.", "error");
-    }
-  }
-
   const staticActions: PaletteItem[] = [
     {
       kind: "action",
@@ -163,20 +90,6 @@ export function CommandPalette() {
       label: "Create new page",
       icon: FilePlus,
       run: handleNewPage,
-    },
-    {
-      kind: "action",
-      id: "today-note",
-      label: "Open today's note",
-      icon: CalendarDays,
-      run: handleTodayNote,
-    },
-    {
-      kind: "action",
-      id: "import-markdown",
-      label: "Import Markdown file…",
-      icon: FileUp,
-      run: handleImportMarkdown,
     },
     {
       kind: "action",
@@ -196,6 +109,16 @@ export function CommandPalette() {
       run: () => {
         close();
         navigate("/settings");
+      },
+    },
+    {
+      kind: "action",
+      id: "keyboard-shortcuts",
+      label: "Keyboard shortcuts",
+      icon: Keyboard,
+      run: () => {
+        close();
+        openShortcuts();
       },
     },
     {
@@ -233,6 +156,7 @@ export function CommandPalette() {
         id: `page-${result.page.id}`,
         label: result.page.title,
         snippet: result.snippet,
+        tagName: result.tagName,
         pageId: result.page.id,
       }))
     : recentPageIds
@@ -353,7 +277,11 @@ export function CommandPalette() {
               {item.kind === "action" ? (
                 <item.icon className="size-4 shrink-0" />
               ) : item.kind === "page" ? (
-                <FileText className="size-4 shrink-0" />
+                item.tagName ? (
+                  <Tag className="size-4 shrink-0" />
+                ) : (
+                  <FileText className="size-4 shrink-0" />
+                )
               ) : (
                 <FilePlus className="size-4 shrink-0" />
               )}
@@ -362,19 +290,16 @@ export function CommandPalette() {
                 {item.kind === "page" && item.snippet && (
                   <span className="text-text-faint block truncate text-xs">{item.snippet}</span>
                 )}
+                {item.kind === "page" && item.tagName && (
+                  <span className="text-text-faint block truncate text-xs">
+                    Tagged #{item.tagName}
+                  </span>
+                )}
               </span>
             </button>
           ))
         )}
       </div>
-
-      <input
-        ref={importFileInputRef}
-        type="file"
-        accept=".md,.markdown,text/markdown"
-        className="hidden"
-        onChange={handleMarkdownFileSelected}
-      />
     </Dialog>
   );
 }

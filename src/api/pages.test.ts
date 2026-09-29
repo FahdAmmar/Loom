@@ -1,12 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { ApiError } from "@/api/client";
 import { mockDb } from "@/api/_mockDb";
+import * as blocksApi from "@/api/blocks";
 import * as pagesApi from "@/api/pages";
 
 // A workspace id distinct from "default" so these tests are fully isolated
-// from the app's built-in demo content, which every fresh database seeds.
+// from the app's built-in demo content, which auto-seeds the first time
+// localStorage is read.
 const WS = "test-workspace";
+
+beforeEach(() => {});
 
 describe("createPage", () => {
   it("creates a page with the given title", async () => {
@@ -221,6 +225,59 @@ describe("movePage", () => {
   });
 });
 
+describe("duplicatePage", () => {
+  it("creates a copy with '(copy)' appended to the title", async () => {
+    const source = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: null,
+      title: "Notes",
+    });
+    const copy = await pagesApi.duplicatePage(source.id);
+    expect(copy.id).not.toBe(source.id);
+    expect(copy.title).toBe("Notes (copy)");
+    expect(copy.parentId).toBe(source.parentId);
+  });
+
+  it("copies the page's own blocks, including nested ones, with remapped ids", async () => {
+    const source = await pagesApi.createPage({ workspaceId: WS, parentId: null });
+    const toggle = await blocksApi.createBlock({
+      pageId: source.id,
+      type: "toggle",
+      content: { html: "Details" },
+    });
+    await blocksApi.createBlock({
+      pageId: source.id,
+      type: "paragraph",
+      content: { html: "child" },
+      parentBlockId: toggle.id,
+    });
+
+    const copy = await pagesApi.duplicatePage(source.id);
+    const copiedBlocks = await blocksApi.listBlocks(copy.id);
+
+    expect(copiedBlocks).toHaveLength(2);
+    const copiedToggle = copiedBlocks.find((b) => b.type === "toggle");
+    const copiedChild = copiedBlocks.find((b) => b.type === "paragraph");
+    expect(copiedToggle?.id).not.toBe(toggle.id);
+    expect(copiedChild?.parentBlockId).toBe(copiedToggle?.id);
+  });
+
+  it("does not copy sub-pages", async () => {
+    const parent = await pagesApi.createPage({ workspaceId: WS, parentId: null });
+    await pagesApi.createPage({ workspaceId: WS, parentId: parent.id });
+
+    await pagesApi.duplicatePage(parent.id);
+
+    const pages = await pagesApi.listPages(WS);
+    // Original parent + original child + the one duplicate = 3, not 4.
+    expect(pages).toHaveLength(3);
+  });
+
+  it("throws an ApiError for an unknown page id", async () => {
+    await expect(pagesApi.duplicatePage("nope")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
 describe("deletePage", () => {
   it("removes the page itself", async () => {
     const page = await pagesApi.createPage({ workspaceId: WS, parentId: null });
@@ -250,7 +307,7 @@ describe("deletePage", () => {
     expect(remaining.map((p) => p.id)).toEqual([unrelated.id]);
   });
 
-  it("cascades to the page's blocks", async () => {
+  it("keeps the page's blocks, so a trashed page can be restored intact", async () => {
     const page = await pagesApi.createPage({ workspaceId: WS, parentId: null });
     const db = mockDb.read();
     db.blocks["block-1"] = {
@@ -264,10 +321,10 @@ describe("deletePage", () => {
     mockDb.write(db);
 
     await pagesApi.deletePage(page.id);
-    expect(mockDb.read().blocks["block-1"]).toBeUndefined();
+    expect(mockDb.read().blocks["block-1"]).toBeDefined();
   });
 
-  it("cascades to links touching the deleted page, either direction", async () => {
+  it("keeps links touching a trashed page, either direction", async () => {
     const a = await pagesApi.createPage({ workspaceId: WS, parentId: null });
     const b = await pagesApi.createPage({ workspaceId: WS, parentId: null });
     const db = mockDb.read();
@@ -280,10 +337,148 @@ describe("deletePage", () => {
     mockDb.write(db);
 
     await pagesApi.deletePage(a.id);
-    expect(mockDb.read().links["link-1"]).toBeUndefined();
+    expect(mockDb.read().links["link-1"]).toBeDefined();
   });
 
   it("throws an ApiError for an unknown page id", async () => {
     await expect(pagesApi.deletePage("nope")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("trash", () => {
+  it("hides a trashed page from listPages without destroying it", async () => {
+    const page = await pagesApi.createPage({ workspaceId: WS, parentId: null, title: "Draft" });
+
+    await pagesApi.deletePage(page.id);
+
+    expect((await pagesApi.listPages(WS)).map((p) => p.id)).not.toContain(page.id);
+    expect(mockDb.read().pages[page.id]?.deletedAt).toBeDefined();
+  });
+
+  it("trashes a whole sub-tree, stamping one shared deletedAt on it", async () => {
+    const root = await pagesApi.createPage({ workspaceId: WS, parentId: null });
+    const child = await pagesApi.createPage({ workspaceId: WS, parentId: root.id });
+    const grandchild = await pagesApi.createPage({ workspaceId: WS, parentId: child.id });
+
+    const trashed = await pagesApi.deletePage(root.id);
+
+    expect(new Set(trashed)).toEqual(new Set([root.id, child.id, grandchild.id]));
+    const stamps = [root.id, child.id, grandchild.id].map(
+      (id) => mockDb.read().pages[id].deletedAt,
+    );
+    expect(new Set(stamps).size).toBe(1);
+    expect(stamps[0]).toBeDefined();
+  });
+
+  it("lists only the root of a trashed sub-tree, so a folder is one row", async () => {
+    const root = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: null,
+      title: "Folder",
+    });
+    await pagesApi.createPage({ workspaceId: WS, parentId: root.id, title: "Inner" });
+    const standalone = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: null,
+      title: "Loose",
+    });
+
+    await pagesApi.deletePage(root.id);
+    await pagesApi.deletePage(standalone.id);
+
+    const listed = await pagesApi.listTrashedPages(WS);
+    expect(listed.map((p) => p.id).sort()).toEqual([root.id, standalone.id].sort());
+  });
+
+  it("restores a trashed sub-tree whole, returning every restored page", async () => {
+    const root = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: null,
+      title: "Folder",
+    });
+    const child = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: root.id,
+      title: "Inner",
+    });
+
+    await pagesApi.deletePage(root.id);
+    const restored = await pagesApi.restorePage(root.id);
+
+    expect(new Set(restored.map((p) => p.id))).toEqual(new Set([root.id, child.id]));
+    expect(restored.every((p) => !("deletedAt" in p))).toBe(true);
+    expect((await pagesApi.listPages(WS)).map((p) => p.id).sort()).toEqual(
+      [root.id, child.id].sort(),
+    );
+  });
+
+  it("permanently deletes a trashed sub-tree along with its blocks and links", async () => {
+    const a = await pagesApi.createPage({ workspaceId: WS, parentId: null });
+    const b = await pagesApi.createPage({ workspaceId: WS, parentId: null });
+    const db = mockDb.read();
+    db.blocks["block-1"] = {
+      id: "block-1",
+      pageId: a.id,
+      parentBlockId: null,
+      type: "paragraph",
+      content: { html: "hi" },
+      order: 0,
+    };
+    db.links["link-1"] = {
+      id: "link-1",
+      sourcePageId: a.id,
+      targetPageId: b.id,
+      sourceBlockId: "block-1",
+    };
+    mockDb.write(db);
+
+    await pagesApi.deletePage(a.id);
+    await pagesApi.permanentlyDeletePage(a.id);
+
+    const after = mockDb.read();
+    expect(after.pages[a.id]).toBeUndefined();
+    expect(after.blocks["block-1"]).toBeUndefined();
+    expect(after.links["link-1"]).toBeUndefined();
+  });
+
+  it("empties the trash for good, leaving live pages alone", async () => {
+    const trashed = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: null,
+      title: "Gone",
+    });
+    const live = await pagesApi.createPage({ workspaceId: WS, parentId: null, title: "Kept" });
+
+    await pagesApi.deletePage(trashed.id);
+    await pagesApi.emptyTrash(WS);
+
+    const db = mockDb.read();
+    expect(db.pages[trashed.id]).toBeUndefined();
+    expect(db.pages[live.id]).toBeDefined();
+    expect(await pagesApi.listTrashedPages(WS)).toEqual([]);
+  });
+});
+
+describe("getPageDeletionSnapshot / restorePagesFromSnapshot", () => {
+  it("restores a deleted page (and a deleted descendant) with the same ids, undoing deletePage", async () => {
+    const parent = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: null,
+      title: "Parent",
+    });
+    const child = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: parent.id,
+      title: "Child",
+    });
+
+    const snapshot = await pagesApi.getPageDeletionSnapshot(parent.id);
+    await pagesApi.deletePage(parent.id);
+    expect(await pagesApi.listPages(WS)).toHaveLength(0);
+
+    await pagesApi.restorePagesFromSnapshot(snapshot);
+    const restored = await pagesApi.listPages(WS);
+    expect(restored.map((p) => p.id).sort()).toEqual([child.id, parent.id].sort());
+    expect(restored.find((p) => p.id === child.id)?.parentId).toBe(parent.id);
   });
 });

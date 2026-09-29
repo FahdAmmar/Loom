@@ -29,5 +29,9 @@ single-consumer, ephemeral UI state.
 `usePageStore`'s persisted `recentPageIds`) whenever the query is empty,
 instead of just the static action list.
 
-**Still ahead:** tag search (typing a tag name doesn't surface pages tagged
-with it yet — only title/content matches do).
+**Tag search.** Typing a tag name now surfaces the pages carrying that tag;
+a leading `#` (`#guide`) means "this is a tag". A page matches at most once,
+in priority order title → tag → content, and results are listed in that same
+order. A tag hit shows a tag icon and a "Tagged #name" line in the palette.
+Like title matching, tag matching is a plain case-insensitive substring
+check (no fuzzy matching on tag names).

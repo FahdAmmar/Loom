@@ -2,8 +2,13 @@ import { createContext, useContext } from "react";
 
 export type ToastVariant = "default" | "success" | "error";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastApi {
-  toast: (message: string, variant?: ToastVariant) => void;
+  toast: (message: string, variant?: ToastVariant, action?: ToastAction) => void;
 }
 
 // Lives here (a non-component file) rather than in toast.tsx so that file

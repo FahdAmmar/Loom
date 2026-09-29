@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Network, Plus, RotateCcw, Search } from "lucide-react";
+import { List, Minus, Network, Plus, RotateCcw, Search } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import * as linksApi from "@/api/links";
 import * as tagsApi from "@/api/tags";
 import { EmptyState } from "@/components/EmptyState";
+import { ConnectionsListView } from "@/features/graph/components/ConnectionsListView";
 import {
   createGraphSimulation,
   nodeRadius,
@@ -57,6 +58,10 @@ export function GraphView() {
   const [query, setQuery] = useState("");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [activeTagId, setActiveTagId] = useState<string | null>(null);
+  /** The physics graph is a hard accessibility case (see the sr-only note
+   * below) — "list" is a real keyboard/screen-reader-navigable alternative
+   * over the same data, not just a note pointing elsewhere. */
+  const [viewMode, setViewMode] = useState<"graph" | "list">("graph");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
@@ -346,18 +351,59 @@ export function GraphView() {
         </button>
       </div>
 
+      <div className="border-border bg-card absolute top-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-md border p-0.5 shadow-sm">
+        <button
+          type="button"
+          aria-pressed={viewMode === "graph"}
+          onClick={() => setViewMode("graph")}
+          title="Graph view"
+          className={cn(
+            "flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium",
+            viewMode === "graph"
+              ? "bg-accent text-accent-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Network className="size-3.5" />
+          Graph
+        </button>
+        <button
+          type="button"
+          aria-pressed={viewMode === "list"}
+          onClick={() => setViewMode("list")}
+          title="List view — a keyboard and screen-reader friendly alternative"
+          className={cn(
+            "flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium",
+            viewMode === "list"
+              ? "bg-accent text-accent-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <List className="size-3.5" />
+          List
+        </button>
+      </div>
+
       {pageCount === 0 ? (
         <EmptyState
           icon={<Network className="size-5" />}
           title="Nothing to graph yet"
           description="Create a page first — every page becomes a node here."
         />
+      ) : viewMode === "list" ? (
+        <ConnectionsListView
+          pagesById={pagesById}
+          links={links ?? []}
+          query={query}
+          activeTagId={activeTagId}
+          tagIdsByPage={tagIdsByPage}
+        />
       ) : (
         <>
           <p className="sr-only">
             An interactive, visually-arranged, physics-driven graph of {pageCount} pages — drag
-            a node to see its connections respond. It's best explored visually — use the
-            sidebar's page list to browse the same pages by keyboard or screen reader.
+            a node to see its connections respond. For the same connections as a navigable list,
+            use the "List" button above the graph.
           </p>
           <svg
             width={size.width}

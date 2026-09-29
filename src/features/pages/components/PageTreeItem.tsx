@@ -83,7 +83,13 @@ export function PageTreeItem({ page, depth, hasChildren, onNavigate }: PageTreeI
           )
         }
       >
-        <FileText className="size-3.5 shrink-0" />
+        {page.icon ? (
+          <span className="flex size-3.5 shrink-0 items-center justify-center text-sm leading-none">
+            {page.icon}
+          </span>
+        ) : (
+          <FileText className="size-3.5 shrink-0" />
+        )}
         <span className="truncate">{page.title}</span>
       </NavLink>
 

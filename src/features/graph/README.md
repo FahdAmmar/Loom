@@ -53,5 +53,13 @@ immediate neighbors only, rendered in a side panel rather than full-screen).
 Both are legitimate, substantial features in their own right rather than
 "finish what's already 90% there."
 
-**Still true:** force-directed graphs remain a hard accessibility case —
-see the `sr-only` note in the component, unchanged from Phase 4.
+**Fixed: accessible alternative to the physics graph.** A force-directed
+SVG graph remains a hard case on its own — dragging nodes and reading
+positions has no real keyboard/screen-reader equivalent. Rather than only
+pointing elsewhere in a `sr-only` note (Phase 4's approach), a "Graph /
+List" toggle (top-center) switches to `ConnectionsListView`
+(`features/graph/components/`): the same `pagesById`/`links` data, the
+same search and tag filter, rendered as real focusable HTML — one section
+per page, listing the pages it links to. Not a copy of the sidebar's page
+list (which doesn't show connections at all); this is the graph's actual
+information, just as a list instead of a canvas.
