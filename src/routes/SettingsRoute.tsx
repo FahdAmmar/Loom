@@ -1,11 +1,15 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import {
   AlignHorizontalJustifyCenter,
+  Compass,
   Download,
+  Smartphone,
   Keyboard,
   Loader2,
   Monitor,
   Moon,
+  PilcrowLeft,
+  PilcrowRight,
   RotateCcw,
   Sun,
   Upload,
@@ -16,26 +20,41 @@ import type { WorkspaceExport } from "@/api/backup";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { useTheme } from "@/hooks/useTheme";
+import type { MessageKey } from "@/i18n";
+import { useT } from "@/i18n/useT";
 import { useToast } from "@/hooks/useToast";
+import { useOnboardingStore } from "@/stores/useOnboardingStore";
 import { useShortcutsDialogStore } from "@/stores/useShortcutsDialogStore";
 import {
   useSettingsStore,
   type EditorWidth,
+  type UiDirection,
   type ThemePreference,
 } from "@/stores/useSettingsStore";
 
 const WORKSPACE_ID = "default";
 
-const THEME_OPTIONS: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+const THEME_OPTIONS: { value: ThemePreference; label: MessageKey; icon: typeof Sun }[] = [
+  { value: "light", label: "theme.light", icon: Sun },
+  { value: "dark", label: "theme.dark", icon: Moon },
+  { value: "system", label: "theme.system", icon: Monitor },
 ];
 
-const EDITOR_WIDTH_OPTIONS: { value: EditorWidth; label: string; description: string }[] = [
-  { value: "narrow", label: "Narrow", description: "Easier to read long paragraphs" },
-  { value: "wide", label: "Wide", description: "More room for tables and boards" },
+const EDITOR_WIDTH_OPTIONS: {
+  value: EditorWidth;
+  label: MessageKey;
+  description: MessageKey;
+}[] = [
+  { value: "narrow", label: "width.narrow", description: "width.narrowHelp" },
+  { value: "wide", label: "width.wide", description: "width.wideHelp" },
+];
+
+// Language names stay in their own script so they're findable whatever the current language is.
+const LANGUAGE_OPTIONS: { value: UiDirection; label: string; icon: typeof PilcrowLeft }[] = [
+  { value: "ltr", label: "English", icon: PilcrowRight },
+  { value: "rtl", label: "العربية", icon: PilcrowLeft },
 ];
 
 /** Filesystem-safe stand-in for a workspace name in a download filename. */
@@ -50,11 +69,16 @@ function slugify(name: string): string {
 }
 
 export function SettingsRoute() {
+  const t = useT();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const editorWidth = useSettingsStore((s) => s.editorWidth);
   const setEditorWidth = useSettingsStore((s) => s.setEditorWidth);
+  const direction = useSettingsStore((s) => s.direction);
+  const setDirection = useSettingsStore((s) => s.setDirection);
   const openShortcuts = useShortcutsDialogStore((s) => s.open);
+  const openTour = useOnboardingStore((s) => s.open);
+  const { canInstall, install } = useInstallPrompt();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isExporting, setExporting] = useState(false);
   const [isImporting, setImporting] = useState(false);
@@ -73,9 +97,9 @@ export function SettingsRoute() {
       link.download = `loom-${slugify(data.workspace.name)}-${data.exportedAt.slice(0, 10)}.json`;
       link.click();
       URL.revokeObjectURL(url);
-      toast("Workspace exported", "success");
+      toast(t("settings.exported"), "success");
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : "Couldn't export the workspace.", "error");
+      toast(err instanceof ApiError ? err.message : t("settings.exportFailed"), "error");
     } finally {
       setExporting(false);
     }
@@ -89,7 +113,7 @@ export function SettingsRoute() {
       const text = await file.text();
       setPendingImport(backupApi.parseWorkspaceExport(text));
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : "Couldn't read that file.", "error");
+      toast(err instanceof ApiError ? err.message : t("settings.readFailed"), "error");
     }
   }
 
@@ -103,7 +127,7 @@ export function SettingsRoute() {
       // whole app (sidebar, graph, editor, ...) reflects it correctly.
       window.location.assign(`/w/${WORKSPACE_ID}`);
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : "Couldn't import that file.", "error");
+      toast(err instanceof ApiError ? err.message : t("settings.importFailed"), "error");
       setImporting(false);
       setPendingImport(null);
     }
@@ -115,7 +139,7 @@ export function SettingsRoute() {
       await backupApi.resetWorkspaceToDemoContent();
       window.location.assign(`/w/${WORKSPACE_ID}`);
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : "Couldn't reset the workspace.", "error");
+      toast(err instanceof ApiError ? err.message : t("settings.resetFailed"), "error");
       setResetting(false);
       setConfirmingReset(false);
     }
@@ -123,17 +147,12 @@ export function SettingsRoute() {
 
   return (
     <div className="mx-auto max-w-xl px-6 py-10">
-      <h1 className="text-xl font-semibold">Settings</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Account and workspace preferences land here as later phases add them. Appearance is
-        wired up now.
-      </p>
+      <h1 className="text-xl font-semibold">{t("nav.settings")}</h1>
+      <p className="text-muted-foreground mt-1 text-sm">{t("settings.intro")}</p>
 
       <section className="mt-8">
-        <h2 className="text-foreground text-sm font-medium">Appearance</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Choose how Loom looks. "System" follows your OS setting automatically.
-        </p>
+        <h2 className="text-foreground text-sm font-medium">{t("settings.appearance")}</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{t("settings.appearanceHelp")}</p>
         <div className="mt-3 grid grid-cols-3 gap-2 sm:max-w-sm">
           {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
             <Button
@@ -145,6 +164,26 @@ export function SettingsRoute() {
               onClick={() => setTheme(value)}
             >
               <Icon className="size-4" />
+              {t(label)}
+            </Button>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-border mt-8 border-t pt-8">
+        <h2 className="text-foreground text-sm font-medium">{t("settings.language")}</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{t("settings.languageHelp")}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:max-w-sm">
+          {LANGUAGE_OPTIONS.map(({ value, label, icon: Icon }) => (
+            <Button
+              key={value}
+              type="button"
+              aria-pressed={direction === value}
+              variant={direction === value ? "default" : "outline"}
+              className="h-auto gap-1.5 py-3"
+              onClick={() => setDirection(value)}
+            >
+              <Icon className="size-3.5" />
               {label}
             </Button>
           ))}
@@ -152,10 +191,8 @@ export function SettingsRoute() {
       </section>
 
       <section className="border-border mt-8 border-t pt-8">
-        <h2 className="text-foreground text-sm font-medium">Editor</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          How wide the page content column is.
-        </p>
+        <h2 className="text-foreground text-sm font-medium">{t("settings.editor")}</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{t("settings.editorHelp")}</p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:max-w-sm">
           {EDITOR_WIDTH_OPTIONS.map(({ value, label, description }) => (
             <Button
@@ -163,32 +200,49 @@ export function SettingsRoute() {
               type="button"
               aria-pressed={editorWidth === value}
               variant={editorWidth === value ? "default" : "outline"}
-              className="h-auto flex-col items-start gap-0.5 py-3 text-left"
+              className="h-auto flex-col items-start gap-0.5 py-3 text-start"
               onClick={() => setEditorWidth(value)}
             >
               <span className="flex items-center gap-1.5">
                 <AlignHorizontalJustifyCenter className="size-3.5" />
-                {label}
+                {t(label)}
               </span>
-              <span className="text-xs font-normal opacity-80">{description}</span>
+              <span className="text-xs font-normal opacity-80">{t(description)}</span>
             </Button>
           ))}
         </div>
 
-        <p className="text-muted-foreground mt-6 text-sm">
-          Every keyboard shortcut, in one place.
-        </p>
+        <p className="text-muted-foreground mt-6 text-sm">{t("settings.shortcutsHelp")}</p>
         <Button type="button" variant="outline" className="mt-2" onClick={openShortcuts}>
           <Keyboard className="size-3.5" />
-          Keyboard shortcuts
+          {t("shortcuts.title")}
         </Button>
+
+        <p className="text-muted-foreground mt-6 text-sm">{t("tour.replayHelp")}</p>
+        <Button type="button" variant="outline" className="mt-2" onClick={openTour}>
+          <Compass className="size-3.5" />
+          {t("tour.replay")}
+        </Button>
+
+        {canInstall && (
+          <>
+            <p className="text-muted-foreground mt-6 text-sm">{t("install.help")}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-2"
+              onClick={() => void install()}
+            >
+              <Smartphone className="size-3.5" />
+              {t("install.title")}
+            </Button>
+          </>
+        )}
       </section>
 
       <section className="border-border mt-8 border-t pt-8">
-        <h2 className="text-foreground text-sm font-medium">Import & export</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Back up this workspace to a file, or restore it from one exported earlier.
-        </p>
+        <h2 className="text-foreground text-sm font-medium">{t("settings.importExport")}</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{t("settings.importExportHelp")}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={handleExport} disabled={isExporting}>
             {isExporting ? (
@@ -196,7 +250,7 @@ export function SettingsRoute() {
             ) : (
               <Download className="size-3.5" />
             )}
-            Export workspace
+            {t("settings.export")}
           </Button>
           <Button
             type="button"
@@ -205,7 +259,7 @@ export function SettingsRoute() {
             disabled={isImporting}
           >
             <Upload className="size-3.5" />
-            Import workspace
+            {t("settings.import")}
           </Button>
           <input
             ref={fileInputRef}
@@ -215,10 +269,7 @@ export function SettingsRoute() {
             onChange={handleFileSelected}
           />
         </div>
-        <p className="text-muted-foreground mt-4 text-sm">
-          Workspace looking empty or stuck from testing import? Reset it back to the built-in
-          demo content.
-        </p>
+        <p className="text-muted-foreground mt-4 text-sm">{t("settings.resetHelp")}</p>
         <Button
           type="button"
           variant="outline"
@@ -226,15 +277,18 @@ export function SettingsRoute() {
           onClick={() => setConfirmingReset(true)}
         >
           <RotateCcw className="size-3.5" />
-          Reset to demo content
+          {t("settings.reset")}
         </Button>
       </section>
 
       <ConfirmDialog
         open={pendingImport !== null}
-        title="Replace this workspace?"
-        description={`This replaces every page in this workspace with the ${pendingImport?.pages.length ?? 0} page${pendingImport?.pages.length === 1 ? "" : "s"} from "${pendingImport?.workspace.name}". This can't be undone.`}
-        confirmLabel={isImporting ? "Importing…" : "Import"}
+        title={t("settings.replaceTitle")}
+        description={t("settings.replaceDesc", {
+          name: pendingImport?.workspace.name ?? "",
+          count: pendingImport?.pages.length ?? 0,
+        })}
+        confirmLabel={isImporting ? t("settings.importing") : t("settings.importConfirm")}
         variant="destructive"
         onConfirm={handleConfirmImport}
         onCancel={() => setPendingImport(null)}
@@ -242,9 +296,9 @@ export function SettingsRoute() {
 
       <ConfirmDialog
         open={confirmingReset}
-        title="Reset to demo content?"
-        description="This replaces every page in this workspace with the built-in sample pages, tags, and templates. This can't be undone."
-        confirmLabel={isResetting ? "Resetting…" : "Reset"}
+        title={t("settings.resetTitle")}
+        description={t("settings.resetDesc")}
+        confirmLabel={isResetting ? t("settings.resetting") : t("settings.resetConfirm")}
         variant="destructive"
         onConfirm={handleConfirmReset}
         onCancel={() => setConfirmingReset(false)}

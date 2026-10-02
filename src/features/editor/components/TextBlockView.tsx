@@ -5,9 +5,9 @@ import type { BlockEditingHandlers } from "@/features/editor/types";
 import type { Block, BlockType } from "@/types/entities";
 
 const VARIANT_CLASSNAMES: Partial<Record<BlockType, string>> = {
-  heading1: "text-2xl font-bold",
-  heading2: "text-xl font-semibold",
-  heading3: "text-lg font-semibold",
+  heading1: "text-[1.5em] font-bold",
+  heading2: "text-[1.25em] font-semibold",
+  heading3: "text-[1.125em] font-semibold",
   quote: "italic text-muted-foreground",
   paragraph: "",
   callout: "",
@@ -39,7 +39,7 @@ export function TextBlockView({ block, ...handlers }: TextBlockViewProps) {
   );
 
   if (block.type === "quote") {
-    return <div className="border-border border-l-2 py-0.5 pl-3">{editorEl}</div>;
+    return <div className="border-border border-s-2 py-0.5 ps-3">{editorEl}</div>;
   }
 
   if (block.type === "callout") {

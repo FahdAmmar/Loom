@@ -3,7 +3,9 @@ import { create } from "zustand";
 import * as blocksApi from "@/api/blocks";
 import type { CreateBlockInput } from "@/api/blocks";
 import * as linksApi from "@/api/links";
-import { extractPageLinkIdsFromHtml } from "@/lib/blocks";
+import { extractPageLinkIdsFromHtml, getOrderedBlocks } from "@/lib/blocks";
+import type { MessageKey } from "@/i18n";
+import { createCommandHistory } from "@/lib/commandHistory";
 import type { Block } from "@/types/entities";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -21,6 +23,11 @@ interface EditorState {
   createBlock: (input: CreateBlockInput) => Promise<Block>;
   /** Optimistic + debounced (600ms) — safe to call on every keystroke. */
   updateBlockContent: (id: string, content: Block["content"]) => void;
+  /** Label of the step ⌘Z would reverse / ⌘⇧Z would reapply; null when there is none. */
+  undoLabel: MessageKey | null;
+  redoLabel: MessageKey | null;
+  undo: () => Promise<MessageKey | null>;
+  redo: () => Promise<MessageKey | null>;
   changeBlockType: (
     id: string,
     type: Block["type"],
@@ -42,6 +49,13 @@ const pendingSaves = new Map<
   { timer: ReturnType<typeof setTimeout>; flush: () => void }
 >();
 const SAVE_DEBOUNCE_MS = 600;
+const HISTORY_LIMIT = 100;
+
+/**
+ * Undo history for structural edits (add, delete, convert, move, paste).
+ * Typing stays with each block's own text-editor history.
+ */
+export const editorHistory = createCommandHistory<MessageKey>(HISTORY_LIMIT);
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   blocksById: {},
@@ -49,8 +63,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isLoading: false,
   saveStatus: "idle",
   collapsedToggleIds: {},
+  undoLabel: null,
+  redoLabel: null,
+
+  undo: async () => (await editorHistory.undo())?.label ?? null,
+  redo: async () => (await editorHistory.redo())?.label ?? null,
 
   loadBlocks: async (pageId) => {
+    editorHistory.clear(); // steps refer to the previous page's block ids
     set({ isLoading: true, blocksById: {}, loadedPageId: pageId, saveStatus: "idle" });
     const blocks = await blocksApi.listBlocks(pageId);
     // Guard against a fast page-to-page navigation resolving out of order.
@@ -65,6 +85,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       clearTimeout(timer);
       flush(); // fire-and-forget — persist the last edit rather than dropping it
     }
+    editorHistory.clear();
     set({ blocksById: {}, loadedPageId: null, isLoading: false, saveStatus: "idle" });
   },
 
@@ -76,6 +97,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const blocks = await blocksApi.listBlocks(input.pageId);
       set({ blocksById: Object.fromEntries(blocks.map((b) => [b.id, b])) });
     }
+
+    let snapshot: blocksApi.BlockDeletionSnapshot | null = null;
+    editorHistory.record({
+      label: "history.addBlock",
+      undo: async () => {
+        snapshot = await get().deleteBlock(block.id);
+      },
+      redo: async () => {
+        if (snapshot) await get().undoDeleteBlock(snapshot);
+      },
+    });
     return block;
   },
 
@@ -140,22 +172,53 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const linkedIds =
       typeof nextContent.html === "string" ? extractPageLinkIdsFromHtml(nextContent.html) : [];
     await linksApi.syncBlockLinks(updated.pageId, id, linkedIds);
+
+    editorHistory.record({
+      label: "history.changeType",
+      undo: () => get().changeBlockType(id, previous.type, previous.content),
+      redo: () => get().changeBlockType(id, type, nextContent),
+    });
   },
 
   deleteBlock: async (id) => {
     // Captured before the delete so the caller can offer "Undo" —
     // deleteBlock's own contract (which ids it removes) stays unchanged.
-    const snapshot = await blocksApi.getBlockDeletionSnapshot(id);
+    const stored = await blocksApi.getBlockDeletionSnapshot(id);
+    // The store holds text typed in the last few hundred ms that isn't saved
+    // yet — keep it in the snapshot so restoring doesn't lose it.
+    const snapshot = {
+      ...stored,
+      blocks: stored.blocks.map((block) => get().blocksById[block.id] ?? block),
+    };
     const removedIds = await blocksApi.deleteBlock(id);
+    for (const removedId of removedIds) {
+      // A queued save would otherwise fire against a block that no longer exists.
+      const pending = pendingSaves.get(removedId);
+      if (pending) clearTimeout(pending.timer);
+      pendingSaves.delete(removedId);
+    }
     set((s) => {
       const next = { ...s.blocksById };
       for (const removedId of removedIds) delete next[removedId];
       return { blocksById: next };
     });
+
+    let current = snapshot;
+    editorHistory.record({
+      label: "history.deleteBlock",
+      key: snapshot,
+      undo: () => get().undoDeleteBlock(current),
+      redo: async () => {
+        current = await get().deleteBlock(id);
+      },
+    });
     return snapshot;
   },
 
   undoDeleteBlock: async (snapshot) => {
+    // Already back (e.g. ⌘Z ran first and the toast's Undo is clicked later).
+    if (snapshot.blocks.every((block) => get().blocksById[block.id])) return;
+    editorHistory.remove(snapshot); // this restore replaces the recorded step
     await blocksApi.restoreBlocksFromSnapshot(snapshot);
     set((s) => {
       const next = { ...s.blocksById };
@@ -165,21 +228,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   moveBlock: async (id, direction) => {
+    const before = get().blocksById[id];
     const updated = await blocksApi.moveBlock(id, direction);
     set((s) => {
       const next = { ...s.blocksById };
       for (const block of updated) next[block.id] = block;
       return { blocksById: next };
     });
+
+    // A move at the edge changes nothing, so there is nothing to undo.
+    if (before && updated.some((block) => block.id === id && block.order !== before.order)) {
+      const opposite = direction === "up" ? "down" : "up";
+      editorHistory.record({
+        label: "history.moveBlock",
+        undo: () => get().moveBlock(id, opposite),
+        redo: () => get().moveBlock(id, direction),
+      });
+    }
   },
 
   reorderBlock: async (id, newIndex) => {
+    const target = get().blocksById[id];
+    const oldIndex = target
+      ? getOrderedBlocks(get().blocksById, target.pageId, target.parentBlockId).findIndex(
+          (block) => block.id === id,
+        )
+      : -1;
     const updated = await blocksApi.reorderBlock(id, newIndex);
     set((s) => {
       const next = { ...s.blocksById };
       for (const block of updated) next[block.id] = block;
       return { blocksById: next };
     });
+
+    if (updated.length > 0 && oldIndex !== -1) {
+      editorHistory.record({
+        label: "history.moveBlock",
+        undo: () => get().reorderBlock(id, oldIndex),
+        redo: () => get().reorderBlock(id, newIndex),
+      });
+    }
   },
 
   toggleExpanded: (blockId) =>
@@ -190,3 +278,5 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     })),
 }));
+
+editorHistory.subscribe(() => useEditorStore.setState(editorHistory.getState()));

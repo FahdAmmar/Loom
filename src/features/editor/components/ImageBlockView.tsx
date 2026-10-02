@@ -2,6 +2,7 @@ import { ImageIcon, Loader2, Pencil, Upload } from "lucide-react";
 import { useRef, useState, type ChangeEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { MAX_UPLOAD_BYTES, readFileAsDataUrl } from "@/features/editor/uploads";
 import { useToast } from "@/hooks/useToast";
 
 interface ImageBlockViewProps {
@@ -10,22 +11,6 @@ interface ImageBlockViewProps {
   caption?: string;
   onChange: (content: { url: string; alt?: string; caption?: string }) => void;
   onBackspaceEmpty: () => void;
-}
-
-// Uploaded images are stored as data URIs directly in the block's content —
-// there's no real backend to upload to. localStorage has a shared quota
-// (commonly ~5MB per origin) across every page's content, so this caps a
-// single upload well under that rather than letting one large image eat
-// most of it.
-const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error ?? new Error("Couldn't read that file."));
-    reader.readAsDataURL(file);
-  });
 }
 
 export function ImageBlockView({
@@ -156,7 +141,7 @@ export function ImageBlockView({
           setEditing(true);
         }}
         aria-label="Edit image"
-        className="bg-background/90 text-muted-foreground absolute top-2 right-2 flex size-8 items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
+        className="bg-background/90 text-muted-foreground absolute end-2 top-2 flex size-8 items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
       >
         <Pencil className="size-3.5" />
       </button>

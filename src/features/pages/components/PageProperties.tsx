@@ -14,13 +14,12 @@ const PROPERTY_TYPES: { value: PagePropertyType; label: string }[] = [
   { value: "checkbox", label: "Checkbox" },
 ];
 
-export function PropertyValueInput({
-  property,
-  onChange,
-}: {
+interface PropertyValueInputProps {
   property: PageProperty;
   onChange: (value: PageProperty["value"]) => void;
-}) {
+}
+
+export function PropertyValueInput({ property, onChange }: PropertyValueInputProps) {
   switch (property.type) {
     case "checkbox":
       return (
@@ -187,7 +186,7 @@ export function PageProperties({ pageId }: { pageId: string }) {
             </button>
           </div>
           {editingOptionsId === property.id && (
-            <div className="flex items-center gap-2 pl-[7.75rem]">
+            <div className="flex items-center gap-2 ps-[7.75rem]">
               <input
                 value={optionsDraft}
                 onChange={(e) => setOptionsDraft(e.target.value)}

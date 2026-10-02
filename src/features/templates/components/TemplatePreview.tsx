@@ -1,6 +1,7 @@
 import { CheckSquare, Megaphone, Paperclip, Square } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { sanitizeRichText } from "@/lib/html";
 import type { Block, BoardColumn, Template } from "@/types/entities";
 
 /**
@@ -37,10 +38,10 @@ type PreviewBlock = Pick<Block, "type" | "content">;
 
 function Html({ html, className }: { html: unknown; className?: string }) {
   const value = typeof html === "string" && html.trim() ? html : "&nbsp;";
-  // This is the app's own previously-saved content, the same trust level
-  // BlockTextEditor already renders it at live-size with — not third-party
-  // input being displayed unsanitized.
-  return <div className={className} dangerouslySetInnerHTML={{ __html: value }} />;
+  // Stored HTML may originate from an imported backup, so it is sanitized here.
+  return (
+    <div className={className} dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) }} />
+  );
 }
 
 function renderBlock(block: PreviewBlock, key: number) {
@@ -57,7 +58,7 @@ function renderBlock(block: PreviewBlock, key: number) {
 
     case "quote":
       return (
-        <div key={key} className="border-border border-l-2 pl-3">
+        <div key={key} className="border-border border-s-2 ps-3">
           <Html html={block.content.html} className="text-muted-foreground text-sm italic" />
         </div>
       );
@@ -72,7 +73,7 @@ function renderBlock(block: PreviewBlock, key: number) {
 
     case "bulletList":
       return (
-        <div key={key} className="flex items-start gap-2 pl-1 text-sm">
+        <div key={key} className="flex items-start gap-2 ps-1 text-sm">
           <span className="bg-text-faint mt-2 size-1.5 shrink-0 rounded-full" />
           <Html html={block.content.html} />
         </div>
@@ -80,7 +81,7 @@ function renderBlock(block: PreviewBlock, key: number) {
 
     case "numberedList":
       return (
-        <div key={key} className="flex items-start gap-2 pl-1 text-sm">
+        <div key={key} className="flex items-start gap-2 ps-1 text-sm">
           <span className="text-text-faint">•</span>
           <Html html={block.content.html} />
         </div>
@@ -90,7 +91,7 @@ function renderBlock(block: PreviewBlock, key: number) {
       const checked = Boolean(block.content.checked);
       const Icon = checked ? CheckSquare : Square;
       return (
-        <div key={key} className="flex items-start gap-2 pl-1 text-sm">
+        <div key={key} className="flex items-start gap-2 ps-1 text-sm">
           <Icon
             className={`mt-0.5 size-3.5 shrink-0 ${checked ? "text-brand-mint" : "text-text-faint"}`}
           />

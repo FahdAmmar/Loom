@@ -8,15 +8,25 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { BlockList } from "@/features/editor/components/BlockList";
+import { BlockSelectionBar } from "@/features/editor/components/BlockSelectionBar";
+import { PageOutline } from "@/features/editor/components/PageOutline";
 import { EditorFocusProvider } from "@/features/editor/EditorFocusContext";
 import { EditorSkeleton } from "@/features/editor/components/EditorSkeleton";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
+import {
+  buildDragAnnouncements,
+  buildDragInstructions,
+} from "@/features/editor/dragAnnouncements";
+import { useBlockSelectionShortcuts } from "@/features/editor/useBlockSelectionShortcuts";
+import { useHistoryShortcuts } from "@/features/editor/useHistoryShortcuts";
+import { usePageLayout } from "@/hooks/usePageLayout";
+import { useT } from "@/i18n/useT";
 import { getOrderedBlocks } from "@/lib/blocks";
-import { EDITOR_WIDTH_CLASSES, useSettingsStore } from "@/stores/useSettingsStore";
-import { useEditorStore } from "@/stores/useEditorStore";
+import { useBlockSelectionStore } from "@/stores/useBlockSelectionStore";
+import { editorHistory, useEditorStore } from "@/stores/useEditorStore";
 
 function EditorBody({ pageId }: { pageId: string }) {
   const isLoading = useEditorStore((s) => s.isLoading);
@@ -24,8 +34,22 @@ function EditorBody({ pageId }: { pageId: string }) {
   const blocksById = useEditorStore((s) => s.blocksById);
   const createBlock = useEditorStore((s) => s.createBlock);
   const reorderBlock = useEditorStore((s) => s.reorderBlock);
-  const editorWidth = useSettingsStore((s) => s.editorWidth);
+  const { widthClass, fontClass, sizeClass } = usePageLayout(pageId);
   const { focus } = useEditorFocus();
+  useHistoryShortcuts();
+  useBlockSelectionShortcuts(pageId);
+  const t = useT();
+  // Read blocks at announce time, so the position reflects the move in progress.
+  const dragAccessibility = useMemo(
+    () => ({
+      announcements: buildDragAnnouncements(() => useEditorStore.getState().blocksById, t),
+      screenReaderInstructions: buildDragInstructions(t),
+    }),
+    [t],
+  );
+
+  // A selection belongs to one page: drop it when leaving.
+  useEffect(() => () => useBlockSelectionStore.getState().clear(), [pageId]);
 
   const seededPageIdRef = useRef<string | null>(null);
   const topLevelBlocks = getOrderedBlocks(blocksById, pageId, null);
@@ -74,7 +98,11 @@ function EditorBody({ pageId }: { pageId: string }) {
     }
     seededPageIdRef.current = pageId;
     createBlock({ pageId, type: "paragraph", content: { html: "" }, parentBlockId: null }).then(
-      (created) => requestAnimationFrame(() => focus(created.id)),
+      (created) => {
+        // The starter block isn't a user edit: undoing it would leave nowhere to type.
+        editorHistory.clear();
+        requestAnimationFrame(() => focus(created.id));
+      },
     );
     // createBlock/focus are stable (Zustand action / context value) — only
     // isLoading, loadedPageId, the block count, and the page itself should
@@ -85,11 +113,14 @@ function EditorBody({ pageId }: { pageId: string }) {
   if (isLoading) return <EditorSkeleton />;
 
   return (
-    <div className={`mx-auto px-6 py-6 ${EDITOR_WIDTH_CLASSES[editorWidth]}`}>
+    <div className={`mx-auto px-6 py-6 ${widthClass} ${fontClass} ${sizeClass}`}>
+      <PageOutline pageId={pageId} />
+      <BlockSelectionBar />
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
+        accessibility={dragAccessibility}
       >
         <BlockList pageId={pageId} />
       </DndContext>
@@ -97,7 +128,7 @@ function EditorBody({ pageId }: { pageId: string }) {
         type="button"
         onClick={() => focus(topLevelBlocks.at(-1)?.id)}
         aria-label="Click to continue writing"
-        className="h-16 w-full cursor-text"
+        className="h-16 w-full cursor-text print:hidden"
       />
     </div>
   );

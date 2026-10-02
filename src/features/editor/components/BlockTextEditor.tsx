@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -6,7 +6,10 @@ import { useNavigate } from "react-router";
 import { SelectionToolbar } from "@/features/editor/components/SelectionToolbar";
 import { WikilinkMenu } from "@/features/editor/components/WikilinkMenu";
 import { PageLinkNode } from "@/features/editor/nodes/pageLinkNode";
+import { Highlight } from "@/features/editor/extensions/Highlight";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
+import { historyDirection, useRunHistory } from "@/features/editor/useHistoryShortcuts";
+import type { PasteData } from "@/lib/paste";
 import { cn } from "@/lib/utils";
 import { usePageStore } from "@/stores/usePageStore";
 import type { BlockType, Page } from "@/types/entities";
@@ -40,6 +43,8 @@ interface BlockTextEditorProps {
   onSlashStateChange: (state: SlashState) => void;
   /** While the slash menu is open, arrow/enter/escape go here first. Return true to swallow the key. */
   onSlashKeyDown: (key: string) => boolean;
+  onPaste?: (data: PasteData) => boolean;
+  onEscape?: () => void;
 }
 
 const WORKSPACE_ID = "default";
@@ -71,6 +76,8 @@ export function BlockTextEditor({
   onArrowDown,
   onSlashStateChange,
   onSlashKeyDown,
+  onPaste,
+  onEscape,
 }: BlockTextEditorProps) {
   const { register } = useEditorFocus();
   const navigate = useNavigate();
@@ -80,6 +87,17 @@ export function BlockTextEditor({
   const [wikilinkActiveIndex, setWikilinkActiveIndex] = useState(0);
   const isSlashOpenRef = useRef(false);
   const isWikilinkOpenRef = useRef(false);
+  // useEditor captures handlers once; the ref keeps paste on the latest callback.
+  const editorRef = useRef<Editor | null>(null);
+  const runHistory = useRunHistory();
+  const runHistoryRef = useRef(runHistory);
+  const onPasteRef = useRef(onPaste);
+  const onEscapeRef = useRef(onEscape);
+  useEffect(() => {
+    onPasteRef.current = onPaste;
+    onEscapeRef.current = onEscape;
+    runHistoryRef.current = runHistory;
+  });
 
   const matchingPages = wikilinkState.open
     ? Object.values(pagesById)
@@ -101,11 +119,13 @@ export function BlockTextEditor({
         horizontalRule: false,
       }),
       PageLinkNode,
+      Highlight,
     ],
     content: html,
     editorProps: {
       attributes: {
         class: "outline-none",
+        dir: "auto",
         // aria-label only while empty — once there's real content, no
         // aria-label at all, so the accessible name comes from the actual
         // text (aria-label unconditionally set, as this was before, always
@@ -121,7 +141,29 @@ export function BlockTextEditor({
         }
         return false;
       },
+      handlePaste: (view, event) => {
+        const clipboard = event.clipboardData;
+        if (!clipboard || !onPasteRef.current) return false;
+        return onPasteRef.current({
+          text: clipboard.getData("text/plain"),
+          hasHtml: clipboard.types.includes("text/html"),
+          isCodeEditor: clipboard.types.includes("vscode-editor-data"),
+          files: Array.from(clipboard.files),
+          isBlockEmpty: view.state.doc.textContent === "",
+        } satisfies PasteData);
+      },
       handleKeyDown: (view, event) => {
+        // The block's own undo goes first; once it's empty, ⌘Z steps back through
+        // structural edits (added/deleted/moved blocks) instead of doing nothing.
+        const direction = historyDirection(event);
+        if (direction) {
+          const local = editorRef.current?.can();
+          const hasLocalStep = direction === "undo" ? local?.undo() : local?.redo();
+          if (hasLocalStep) return false;
+          void runHistoryRef.current(direction);
+          return true;
+        }
+
         if (isWikilinkOpenRef.current) {
           if (event.key === "ArrowDown") {
             setWikilinkActiveIndex((i) =>
@@ -147,6 +189,12 @@ export function BlockTextEditor({
         if (isSlashOpenRef.current) {
           const handled = onSlashKeyDown(event.key);
           if (handled) return true;
+        }
+
+        if (event.key === "Escape" && onEscapeRef.current) {
+          editorRef.current?.commands.blur();
+          onEscapeRef.current();
+          return true;
         }
 
         if (event.key === "Enter" && !event.shiftKey) {
@@ -215,6 +263,10 @@ export function BlockTextEditor({
     },
   });
 
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
+
   function closeWikilink() {
     isWikilinkOpenRef.current = false;
     setWikilinkState({ open: false, query: "" });
@@ -248,6 +300,7 @@ export function BlockTextEditor({
       editorProps: {
         attributes: {
           class: "outline-none",
+          dir: "auto",
           ...(isEmpty ? { "aria-label": placeholder ?? "Block content" } : {}),
           ...(headingLevel ? { role: "heading", "aria-level": String(headingLevel) } : {}),
         },

@@ -32,6 +32,7 @@ export function CodeBlockView({
         value={code}
         rows={1}
         aria-label="Code block"
+        dir="ltr"
         placeholder="Paste or write code…"
         onChange={(e) => {
           autoResize(e.currentTarget);

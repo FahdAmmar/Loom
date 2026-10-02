@@ -32,7 +32,7 @@ export function BacklinksPanel({ pageId }: { pageId: string }) {
   if (backlinks.length === 0) return null;
 
   return (
-    <div className="border-border border-t px-6 py-5">
+    <div className="border-border border-t px-6 py-5 print:hidden">
       <h2 className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
         <Link2 className="size-3.5" />
         Linked from {backlinks.length} page{backlinks.length === 1 ? "" : "s"}

@@ -96,14 +96,14 @@ export function TableView({
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-border border-b">
-            <th scope="col" className="text-muted-foreground px-3 py-2 text-left font-medium">
+            <th scope="col" className="text-muted-foreground px-3 py-2 text-start font-medium">
               Name
             </th>
             {columns.map((column) => (
               <th
                 key={column.key}
                 scope="col"
-                className="text-muted-foreground border-border border-l px-3 py-2 text-left font-medium"
+                className="text-muted-foreground border-border border-s px-3 py-2 text-start font-medium"
               >
                 <button
                   type="button"
@@ -123,7 +123,7 @@ export function TableView({
                 </button>
               </th>
             ))}
-            <th scope="col" className="border-border border-l px-2 py-2">
+            <th scope="col" className="border-border border-s px-2 py-2">
               {isAddingColumn ? (
                 <div className="flex items-center gap-1.5">
                   <input
@@ -131,6 +131,7 @@ export function TableView({
                     onChange={(e) => setNewColumnName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddColumn()}
                     placeholder="Property name"
+                    dir="auto"
                     className="border-border w-24 rounded border bg-transparent px-1.5 py-1 text-xs font-normal outline-none"
                   />
                   <select
@@ -187,7 +188,7 @@ export function TableView({
                   (p) => p.pageId === page.id && p.key === column.key,
                 );
                 return (
-                  <td key={column.key} className="border-border border-l px-3 py-1.5">
+                  <td key={column.key} className="border-border border-s px-3 py-1.5">
                     {property ? (
                       <PropertyValueInput
                         property={property}
@@ -206,7 +207,7 @@ export function TableView({
                   </td>
                 );
               })}
-              <td className="border-border border-l" aria-hidden="true" />
+              <td className="border-border border-s" aria-hidden="true" />
             </tr>
           ))}
         </tbody>

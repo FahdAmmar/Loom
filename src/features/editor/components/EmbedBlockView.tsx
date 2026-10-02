@@ -86,7 +86,7 @@ export function EmbedBlockView({ url, onChange, onBackspaceEmpty }: EmbedBlockVi
           setEditing(true);
         }}
         aria-label="Edit embed"
-        className="bg-background/90 text-muted-foreground absolute top-2 right-2 flex size-8 items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
+        className="bg-background/90 text-muted-foreground absolute end-2 top-2 flex size-8 items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
       >
         <Pencil className="size-3.5" />
       </button>

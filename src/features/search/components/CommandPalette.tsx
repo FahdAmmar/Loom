@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Compass,
   FilePlus,
   FileText,
+  Maximize2,
   Keyboard,
   Moon,
   Network,
@@ -18,6 +20,12 @@ import type { SearchResult } from "@/api/search";
 import { Dialog } from "@/components/ui/dialog";
 import { useTheme } from "@/hooks/useTheme";
 import { useSearchStore } from "@/stores/useSearchStore";
+import { describeFilters } from "@/features/search/describeFilters";
+import { searchWithFilters } from "@/features/search/searchWithFilters";
+import { useT } from "@/i18n/useT";
+import { hasFilters, parseSearchQuery } from "@/lib/searchQuery";
+import { useFocusModeStore } from "@/stores/useFocusModeStore";
+import { useOnboardingStore } from "@/stores/useOnboardingStore";
 import { useShortcutsDialogStore } from "@/stores/useShortcutsDialogStore";
 import { useSidebarStore } from "@/stores/useSidebarStore";
 import { usePageStore } from "@/stores/usePageStore";
@@ -39,11 +47,14 @@ type PaletteItem =
 export function CommandPalette() {
   const isOpen = useSearchStore((s) => s.isCommandPaletteOpen);
   const close = useSearchStore((s) => s.closeCommandPalette);
+  const t = useT();
   const navigate = useNavigate();
   const createPage = usePageStore((s) => s.createPage);
   const pagesById = usePageStore((s) => s.pagesById);
   const recentPageIds = usePageStore((s) => s.recentPageIds);
   const toggleSidebarCollapsed = useSidebarStore((s) => s.toggleCollapsed);
+  const toggleFocusMode = useFocusModeStore((s) => s.toggle);
+  const openTour = useOnboardingStore((s) => s.open);
   const openShortcuts = useShortcutsDialogStore((s) => s.open);
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -64,12 +75,16 @@ export function CommandPalette() {
   }, [isOpen]);
 
   useEffect(() => {
-    if (!query.trim()) {
+    const parsed = parseSearchQuery(query);
+    if (!parsed.text && !hasFilters(parsed)) {
       setPageResults([]);
       return;
     }
     let cancelled = false;
-    searchApi.search(query).then((results) => {
+    searchWithFilters(parsed, {
+      search: searchApi.search,
+      pagesById: usePageStore.getState().pagesById,
+    }).then((results) => {
       if (!cancelled) setPageResults(results);
     });
     return () => {
@@ -87,14 +102,14 @@ export function CommandPalette() {
     {
       kind: "action",
       id: "new-page",
-      label: "Create new page",
+      label: t("palette.newPage"),
       icon: FilePlus,
       run: handleNewPage,
     },
     {
       kind: "action",
       id: "open-graph",
-      label: "Open Graph View",
+      label: t("palette.openGraph"),
       icon: Network,
       run: () => {
         close();
@@ -104,7 +119,7 @@ export function CommandPalette() {
     {
       kind: "action",
       id: "open-settings",
-      label: "Open Settings",
+      label: t("palette.openSettings"),
       icon: Settings,
       run: () => {
         close();
@@ -114,7 +129,7 @@ export function CommandPalette() {
     {
       kind: "action",
       id: "keyboard-shortcuts",
-      label: "Keyboard shortcuts",
+      label: t("palette.shortcuts"),
       icon: Keyboard,
       run: () => {
         close();
@@ -124,7 +139,7 @@ export function CommandPalette() {
     {
       kind: "action",
       id: "toggle-sidebar",
-      label: "Toggle sidebar",
+      label: t("palette.toggleSidebar"),
       icon: PanelLeft,
       run: () => {
         close();
@@ -133,8 +148,28 @@ export function CommandPalette() {
     },
     {
       kind: "action",
+      id: "take-tour",
+      label: t("tour.replay"),
+      icon: Compass,
+      run: () => {
+        close();
+        openTour();
+      },
+    },
+    {
+      kind: "action",
+      id: "toggle-focus-mode",
+      label: t("palette.toggleFocus"),
+      icon: Maximize2,
+      run: () => {
+        close();
+        toggleFocusMode();
+      },
+    },
+    {
+      kind: "action",
       id: "toggle-theme",
-      label: resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme",
+      label: resolvedTheme === "dark" ? t("palette.toLight") : t("palette.toDark"),
       icon: resolvedTheme === "dark" ? Sun : Moon,
       run: () => {
         close();
@@ -143,14 +178,21 @@ export function CommandPalette() {
     },
   ];
 
-  const trimmedQuery = query.trim();
-  const filteredActions = trimmedQuery
-    ? staticActions.filter((a) =>
-        a.kind === "action" ? a.label.toLowerCase().includes(trimmedQuery.toLowerCase()) : true,
-      )
-    : staticActions;
+  const parsedQuery = parseSearchQuery(query);
+  const trimmedQuery = parsedQuery.text;
+  const isFiltering = hasFilters(parsedQuery);
+  const isSearching = trimmedQuery !== "" || isFiltering;
+  const filteredActions = isFiltering
+    ? []
+    : trimmedQuery
+      ? staticActions.filter((a) =>
+          a.kind === "action"
+            ? a.label.toLowerCase().includes(trimmedQuery.toLowerCase())
+            : true,
+        )
+      : staticActions;
 
-  const pageItems: PaletteItem[] = trimmedQuery
+  const pageItems: PaletteItem[] = isSearching
     ? pageResults.map((result) => ({
         kind: "page",
         id: `page-${result.page.id}`,
@@ -175,7 +217,13 @@ export function CommandPalette() {
   );
   const createItem: PaletteItem[] =
     trimmedQuery && !hasExactTitleMatch
-      ? [{ kind: "create", id: "create-named", label: `Create page "${trimmedQuery}"` }]
+      ? [
+          {
+            kind: "create",
+            id: "create-named",
+            label: t("palette.createNamed", { title: trimmedQuery }),
+          },
+        ]
       : [];
 
   const items: PaletteItem[] = [...filteredActions, ...pageItems, ...createItem];
@@ -211,7 +259,7 @@ export function CommandPalette() {
     <Dialog
       open={isOpen}
       onClose={close}
-      aria-label="Command palette"
+      aria-label={t("palette.label")}
       className="mt-[14vh] w-[min(36rem,calc(100vw-2rem))] overflow-hidden p-0"
     >
       <div className="border-border flex items-center gap-2.5 border-b px-4 py-3">
@@ -224,8 +272,9 @@ export function CommandPalette() {
             setActiveIndex(0);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Search pages, or run a command…"
-          aria-label="Command palette input"
+          placeholder={t("palette.placeholder")}
+          aria-label={t("palette.inputLabel")}
+          dir="auto"
           aria-activedescendant={
             items[activeIndex] ? `palette-item-${items[activeIndex].id}` : undefined
           }
@@ -244,15 +293,31 @@ export function CommandPalette() {
         </kbd>
       </div>
 
+      {isFiltering && (
+        <ul
+          aria-label={t("palette.filters")}
+          className="border-border flex flex-wrap gap-1.5 border-b px-4 py-2"
+        >
+          {describeFilters(parsedQuery).map((filter) => (
+            <li
+              key={filter.key}
+              className="bg-secondary text-secondary-foreground rounded-full px-2.5 py-0.5 text-xs"
+            >
+              {t(filter.label, filter.params)}
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div
         id="palette-listbox"
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
         role="listbox"
-        aria-label="Results"
+        aria-label={t("palette.results")}
         className="max-h-80 overflow-y-auto p-1.5"
       >
         {items.length === 0 ? (
-          <p className="text-muted-foreground px-2.5 py-3 text-sm">No results.</p>
+          <p className="text-muted-foreground px-2.5 py-3 text-sm">{t("palette.noResults")}</p>
         ) : (
           items.map((item, index) => (
             <button
@@ -268,7 +333,7 @@ export function CommandPalette() {
                 runItem(item);
               }}
               className={
-                "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm " +
+                "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-start text-sm " +
                 (index === activeIndex
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground")
@@ -292,7 +357,7 @@ export function CommandPalette() {
                 )}
                 {item.kind === "page" && item.tagName && (
                   <span className="text-text-faint block truncate text-xs">
-                    Tagged #{item.tagName}
+                    {t("palette.taggedWith", { tag: item.tagName })}
                   </span>
                 )}
               </span>
@@ -300,6 +365,12 @@ export function CommandPalette() {
           ))
         )}
       </div>
+
+      {!isSearching && (
+        <p className="text-text-faint border-border border-t px-4 py-2 text-xs">
+          {t("palette.hint")}
+        </p>
+      )}
     </Dialog>
   );
 }

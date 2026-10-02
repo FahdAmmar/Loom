@@ -26,6 +26,7 @@ import {
   type TableContent,
 } from "@/lib/table";
 import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/stores/useSettingsStore";
 
 interface TableBlockViewProps {
   table: TableContent;
@@ -44,6 +45,7 @@ const KEYBOARD_RESIZE_STEP = 16;
 
 export function TableBlockView({ table, onChange }: TableBlockViewProps) {
   const tableRef = useRef<HTMLTableElement>(null);
+  const isRtl = useSettingsStore((s) => s.direction === "rtl");
   // Which cell the toolbar acts on — the last one focused. Kept in state
   // (not derived from document.activeElement) because clicking a toolbar
   // button moves focus off the cell before its handler runs.
@@ -162,13 +164,14 @@ export function TableBlockView({ table, onChange }: TableBlockViewProps) {
     handle.setPointerCapture(e.pointerId);
 
     const startX = e.clientX;
+    const sign = isRtl ? -1 : 1;
     const startWidths = table.colWidths ?? measureWidths();
     const startWidth = startWidths[targetCol];
     let latest = startWidths;
 
     function onMove(ev: globalThis.PointerEvent) {
       latest =
-        setColumnWidth(table, targetCol, startWidth + ev.clientX - startX, startWidths)
+        setColumnWidth(table, targetCol, startWidth + sign * (ev.clientX - startX), startWidths)
           .colWidths ?? startWidths;
       setDragWidths(latest);
     }
@@ -188,7 +191,8 @@ export function TableBlockView({ table, onChange }: TableBlockViewProps) {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
     const current = table.colWidths ?? measureWidths();
-    const delta = e.key === "ArrowRight" ? KEYBOARD_RESIZE_STEP : -KEYBOARD_RESIZE_STEP;
+    const growKey = isRtl ? "ArrowLeft" : "ArrowRight";
+    const delta = e.key === growKey ? KEYBOARD_RESIZE_STEP : -KEYBOARD_RESIZE_STEP;
     onChange(setColumnWidth(table, targetCol, current[targetCol] + delta, current));
   }
 
@@ -197,7 +201,7 @@ export function TableBlockView({ table, onChange }: TableBlockViewProps) {
       <div
         role="toolbar"
         aria-label="Table tools"
-        className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-6 opacity-0 transition-opacity group-focus-within/table:opacity-100 group-hover/table:opacity-100"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 ps-6 opacity-0 transition-opacity group-focus-within/table:opacity-100 group-hover/table:opacity-100"
       >
         {groups.map((group) => (
           <fieldset key={group.label} className="m-0 flex min-w-0 gap-0.5 border-0 p-0">
@@ -267,6 +271,7 @@ export function TableBlockView({ table, onChange }: TableBlockViewProps) {
                           }
                           onFocus={() => setActive({ row: rowIndex, col: colIndex })}
                           aria-label={`Row ${rowIndex + 1}, column ${colIndex + 1}`}
+                          dir="auto"
                           className="focus-visible:bg-accent w-full min-w-16 bg-transparent px-2 py-1.5 outline-none"
                         />
                         <button
@@ -274,7 +279,7 @@ export function TableBlockView({ table, onChange }: TableBlockViewProps) {
                           onPointerDown={(e) => startResize(e, lastCol)}
                           onKeyDown={(e) => handleResizeKey(e, lastCol)}
                           aria-label={`Resize column ${lastCol + 1} (drag, or use the left and right arrow keys)`}
-                          className="hover:bg-primary/40 focus-visible:bg-primary/60 absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize touch-none outline-none"
+                          className="hover:bg-primary/40 focus-visible:bg-primary/60 absolute -end-1 top-0 z-10 h-full w-2 cursor-col-resize touch-none outline-none"
                         />
                       </td>
                     );

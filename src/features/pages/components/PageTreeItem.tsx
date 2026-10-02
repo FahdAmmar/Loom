@@ -42,7 +42,7 @@ export function PageTreeItem({ page, depth, hasChildren, onNavigate }: PageTreeI
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group hover:bg-accent flex items-center rounded-md pr-1",
+        "group hover:bg-accent flex items-center rounded-md pe-1",
         isDragging && "opacity-40",
       )}
     >
@@ -52,7 +52,7 @@ export function PageTreeItem({ page, depth, hasChildren, onNavigate }: PageTreeI
         {...listeners}
         aria-label={`Drag ${page.title}`}
         className="text-text-faint hover:text-foreground flex size-5 shrink-0 cursor-grab touch-none items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
-        style={{ marginLeft: depth * 12 }}
+        style={{ marginInlineStart: depth * 12 }}
       >
         <GripVertical className="size-3.5" />
       </button>
@@ -68,7 +68,10 @@ export function PageTreeItem({ page, depth, hasChildren, onNavigate }: PageTreeI
         aria-expanded={!isCollapsed}
       >
         <ChevronRight
-          className={cn("size-3.5 transition-transform", !isCollapsed && "rotate-90")}
+          className={cn(
+            "size-3.5 transition-transform rtl:-scale-x-100",
+            !isCollapsed && "rotate-90",
+          )}
         />
       </button>
 
@@ -78,7 +81,7 @@ export function PageTreeItem({ page, depth, hasChildren, onNavigate }: PageTreeI
         viewTransition
         className={({ isActive }) =>
           cn(
-            "text-muted-foreground flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pr-1 text-sm",
+            "text-muted-foreground flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pe-1 text-sm",
             isActive && "text-foreground font-medium",
           )
         }

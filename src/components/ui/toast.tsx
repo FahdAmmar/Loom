@@ -52,7 +52,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <output
         aria-live="polite"
-        className="pointer-events-none fixed right-4 bottom-4 z-[100] flex flex-col gap-2"
+        className="pointer-events-none fixed end-4 bottom-4 z-[100] flex flex-col gap-2 print:hidden"
       >
         {items.map((item) => (
           <div
@@ -73,7 +73,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   item.action?.onClick();
                   dismiss(item.id);
                 }}
-                className="text-brand-violet -my-1 ml-1 shrink-0 font-medium hover:underline"
+                className="text-brand-violet -my-1 ms-1 shrink-0 font-medium hover:underline"
               >
                 {item.action.label}
               </button>

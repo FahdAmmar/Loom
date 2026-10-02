@@ -27,6 +27,11 @@
   --border: rgba(20, 20, 30, 0.1);
   --input: rgba(20, 20, 30, 0.16);
   --ring: #5a46d6;
+  /* Highlighter colors: pale backgrounds that keep --foreground text above 4.5:1 */
+  --highlight-yellow: #fbe8a6;
+  --highlight-green: #cdeccd;
+  --highlight-blue: #cfe3fa;
+  --highlight-pink: #f8d3e0;
   --radius: 0.875rem;
 
   /* Brand hues (Thread Gold / Structure Violet / Growth Mint) —
@@ -58,6 +63,10 @@
   --border: rgba(255, 255, 255, 0.09);
   --input: rgba(255, 255, 255, 0.16);
   --ring: #8b7ff0;
+  --highlight-yellow: rgba(232, 190, 60, 0.32);
+  --highlight-green: rgba(96, 190, 120, 0.3);
+  --highlight-blue: rgba(96, 156, 235, 0.32);
+  --highlight-pink: rgba(230, 110, 160, 0.32);
 
   --brand-gold: #d9ae68;
   --brand-violet: #8b7ff0;
@@ -140,6 +149,23 @@
 }
 .prose-block s {
   text-decoration: line-through;
+}
+.prose-block mark {
+  color: inherit;
+  border-radius: 3px;
+  padding: 0.05em 0.15em;
+  background-color: var(--highlight-yellow);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.prose-block mark[data-color="green"] {
+  background-color: var(--highlight-green);
+}
+.prose-block mark[data-color="blue"] {
+  background-color: var(--highlight-blue);
+}
+.prose-block mark[data-color="pink"] {
+  background-color: var(--highlight-pink);
 }
 .prose-block code {
   font-family: var(--font-mono);
@@ -226,20 +252,24 @@
     }
   }
 
-  /* Mobile sidebar drawer — slides from the left instead of fading+scaling. */
+  /* Mobile sidebar drawer — slides from the inline-start edge (left in LTR, right in RTL). */
   dialog.drawer-animated {
+    --drawer-offset: -100%;
     transition:
       transform 0.2s ease,
       overlay 0.2s ease allow-discrete,
       display 0.2s ease allow-discrete;
-    transform: translateX(-100%);
+    transform: translateX(var(--drawer-offset));
+  }
+  :root[dir="rtl"] dialog.drawer-animated {
+    --drawer-offset: 100%;
   }
   dialog.drawer-animated[open] {
     transform: translateX(0);
   }
   @starting-style {
     dialog.drawer-animated[open] {
-      transform: translateX(-100%);
+      transform: translateX(var(--drawer-offset));
     }
   }
   dialog.drawer-animated::backdrop {

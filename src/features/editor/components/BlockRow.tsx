@@ -1,6 +1,14 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowDown, ArrowUp, GripVertical, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  CheckSquare,
+  GripVertical,
+  MoreHorizontal,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { memo, type ReactNode } from "react";
 
 import {
@@ -21,9 +29,12 @@ import { TextBlockView } from "@/features/editor/components/TextBlockView";
 import { ToggleBlockView } from "@/features/editor/components/ToggleBlockView";
 import { BlockList } from "@/features/editor/components/BlockList";
 import { useBlockEditingHandlers } from "@/features/editor/useBlockEditingHandlers";
+import { SELECTED_BLOCK_CLASS, useBlockSelectable } from "@/features/editor/useBlockSelectable";
 import { useEditorFocus } from "@/features/editor/useEditorFocus";
 import { useToast } from "@/hooks/useToast";
+import { useT } from "@/i18n/useT";
 import { readTableContent } from "@/lib/table";
+import { useBlockSelectionStore } from "@/stores/useBlockSelectionStore";
 import { useEditorStore } from "@/stores/useEditorStore";
 import type { Block, BoardColumn } from "@/types/entities";
 
@@ -57,11 +68,14 @@ export const BlockRow = memo(function BlockRow({
   const toggleExpanded = useEditorStore((s) => s.toggleExpanded);
   const { focus } = useEditorFocus();
   const { toast } = useToast();
+  const t = useT();
+  const { isSelected, captureProps } = useBlockSelectable(block.id);
+  const selectBlock = useBlockSelectionStore((s) => s.select);
 
   async function handleDelete() {
     const snapshot = await deleteBlock(block.id);
-    toast("Block deleted", "default", {
-      label: "Undo",
+    toast(t("block.deleted"), "default", {
+      label: t("history.undo"),
       onClick: () => undoDeleteBlock(snapshot),
     });
   }
@@ -191,15 +205,16 @@ export const BlockRow = memo(function BlockRow({
   return (
     <div
       ref={setNodeRef}
+      data-block-id={block.id}
       style={sortableStyle}
-      className={`group relative -ml-16 flex items-start gap-1 pl-16 ${isDragging ? "opacity-40" : ""}`}
+      className={`group relative -ms-16 flex scroll-mt-20 items-start gap-1 ps-16 print:break-inside-avoid ${isDragging ? "opacity-40" : ""} ${isSelected ? SELECTED_BLOCK_CLASS : ""}`}
     >
-      <div className="absolute left-0 flex items-center gap-0.5 pt-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+      <div className="absolute start-0 flex items-center gap-0.5 pt-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 print:hidden">
         <button
           type="button"
           {...attributes}
           {...listeners}
-          aria-label="Drag to reorder"
+          aria-label={t("block.dragHandle")}
           className="text-text-faint hover:bg-secondary hover:text-foreground flex size-6 cursor-grab touch-none items-center justify-center rounded active:cursor-grabbing"
         >
           <GripVertical className="size-3.5" />
@@ -207,7 +222,7 @@ export const BlockRow = memo(function BlockRow({
         <button
           type="button"
           onClick={handlers.onEnter}
-          aria-label="Add block below"
+          aria-label={t("block.addBelow")}
           className="text-text-faint hover:bg-secondary hover:text-foreground flex size-6 items-center justify-center rounded"
         >
           <Plus className="size-3.5" />
@@ -216,31 +231,38 @@ export const BlockRow = memo(function BlockRow({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label="Block options"
+              aria-label={t("block.options")}
               className="text-text-faint hover:bg-secondary hover:text-foreground flex size-6 items-center justify-center rounded data-[state=open]:opacity-100"
             >
               <MoreHorizontal className="size-3.5" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => selectBlock(block.id)}>
+              <CheckSquare className="size-3.5" />
+              {t("selection.select")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => moveBlock(block.id, "up")}>
               <ArrowUp className="size-3.5" />
-              Move up
+              {t("selection.moveUp")}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => moveBlock(block.id, "down")}>
               <ArrowDown className="size-3.5" />
-              Move down
+              {t("selection.moveDown")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={handleDelete}>
               <Trash2 className="size-3.5" />
-              Delete
+              {t("selection.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <div className="min-w-0 flex-1">{content}</div>
+      <div className="min-w-0 flex-1" {...captureProps}>
+        {content}
+      </div>
 
       {slashState.open && slashState.coords && (
         <SlashMenu

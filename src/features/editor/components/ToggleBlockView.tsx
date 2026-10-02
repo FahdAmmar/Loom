@@ -35,7 +35,10 @@ export function ToggleBlockView({
           className="text-text-faint mt-1 flex size-5 shrink-0 items-center justify-center"
         >
           <ChevronRight
-            className={cn("size-3.5 transition-transform", isExpanded && "rotate-90")}
+            className={cn(
+              "size-3.5 transition-transform rtl:-scale-x-100",
+              isExpanded && "rotate-90",
+            )}
           />
         </button>
         <BlockTextEditor
@@ -48,7 +51,7 @@ export function ToggleBlockView({
       </div>
 
       {isExpanded && (
-        <div className="border-border mt-1 ml-6 border-l pl-3">
+        <div className="border-border ms-6 mt-1 border-s ps-3">
           {childrenSlot}
           {!hasChildren && (
             <button

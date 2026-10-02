@@ -1,3 +1,4 @@
+import { parseHtmlFragment } from "@/lib/html";
 import type { Block, BlockType } from "@/types/entities";
 
 /** Matches the HTML the pageLink Tiptap node renders/parses (see features/editor/nodes),
@@ -109,8 +110,7 @@ export function insertWikilinkForMention(
   const needle = targetTitle.trim().toLowerCase();
   if (!needle) return null;
 
-  const container = document.createElement("div");
-  container.innerHTML = html;
+  const container = parseHtmlFragment(html);
 
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   let match: { node: Text; index: number } | null = null;
@@ -208,8 +208,7 @@ function domNodeToMarkdown(node: ChildNode): string {
  * correctly instead of needing a combinatorial set of regexes.
  */
 export function inlineHtmlToMarkdown(html: string): string {
-  const container = document.createElement("div");
-  container.innerHTML = html;
+  const container = parseHtmlFragment(html);
   return Array.from(container.childNodes).map(domNodeToMarkdown).join("").trim();
 }
 

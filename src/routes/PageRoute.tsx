@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router";
 
 import { EmptyState } from "@/components/EmptyState";
 import { EditorSkeleton } from "@/features/editor/components/EditorSkeleton";
+import { LocalGraph } from "@/features/graph/components/LocalGraph";
 import { BacklinksPanel } from "@/features/pages/components/BacklinksPanel";
 import { PageHeader } from "@/features/pages/components/PageHeader";
 import { usePageStore } from "@/stores/usePageStore";
@@ -57,6 +58,7 @@ export function PageRoute() {
         <Editor key={page.id} pageId={page.id} />
       </Suspense>
       <BacklinksPanel key={`backlinks-${page.id}`} pageId={page.id} />
+      <LocalGraph key={`local-graph-${page.id}`} pageId={page.id} />
     </div>
   );
 }

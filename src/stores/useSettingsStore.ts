@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 
 export type ThemePreference = "light" | "dark" | "system";
 export type EditorWidth = "narrow" | "wide";
+export type UiDirection = "ltr" | "rtl";
 
 /** Shared with Editor.tsx, EditorSkeleton.tsx, and PageHeader.tsx so the header and body always agree on the content column's width. */
 export const EDITOR_WIDTH_CLASSES: Record<EditorWidth, string> = {
@@ -15,6 +16,8 @@ interface SettingsState {
   setTheme: (theme: ThemePreference) => void;
   editorWidth: EditorWidth;
   setEditorWidth: (width: EditorWidth) => void;
+  direction: UiDirection;
+  setDirection: (direction: UiDirection) => void;
 }
 
 function resolveSystemPrefersDark(): boolean {
@@ -29,6 +32,12 @@ export function applyResolvedTheme(theme: ThemePreference) {
   document.documentElement.classList.toggle("dark", isDark);
 }
 
+/** Mirrors the whole UI; `lang` follows so screen readers and font fallback pick the right script. */
+export function applyDirection(direction: UiDirection) {
+  document.documentElement.dir = direction;
+  document.documentElement.lang = direction === "rtl" ? "ar" : "en";
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
@@ -39,11 +48,18 @@ export const useSettingsStore = create<SettingsState>()(
       },
       editorWidth: "narrow",
       setEditorWidth: (editorWidth) => set({ editorWidth }),
+      direction: "ltr",
+      setDirection: (direction) => {
+        applyDirection(direction);
+        set({ direction });
+      },
     }),
     {
       name: "loom-settings",
       onRehydrateStorage: () => (state) => {
-        if (state) applyResolvedTheme(state.theme);
+        if (!state) return;
+        applyResolvedTheme(state.theme);
+        applyDirection(state.direction ?? "ltr");
       },
     },
   ),

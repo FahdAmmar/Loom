@@ -64,7 +64,7 @@ export function ConnectionsListView({
               {outgoing.length === 0 ? (
                 <p className="text-text-faint mt-1 text-sm">No outgoing links.</p>
               ) : (
-                <ul className="mt-1 flex flex-col gap-0.5 pl-4 text-sm">
+                <ul className="mt-1 flex flex-col gap-0.5 ps-4 text-sm">
                   {outgoing.map((target) => (
                     <li key={target.id} className="text-muted-foreground">
                       →{" "}

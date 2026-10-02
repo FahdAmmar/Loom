@@ -4,6 +4,8 @@ import { GripVertical } from "lucide-react";
 
 import { BlockTextEditor } from "@/features/editor/components/BlockTextEditor";
 import type { BlockEditingHandlers } from "@/features/editor/types";
+import { SELECTED_BLOCK_CLASS, useBlockSelectable } from "@/features/editor/useBlockSelectable";
+import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 import type { Block } from "@/types/entities";
 
@@ -22,23 +24,28 @@ export function ListItemView({
   ...handlers
 }: ListItemViewProps) {
   const html = typeof block.content.html === "string" ? block.content.html : "";
+  const t = useT();
+  const { isSelected, captureProps } = useBlockSelectable(block.id);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = sortable;
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
     <li
       ref={setNodeRef}
+      data-block-id={block.id}
       style={style}
+      {...captureProps}
       className={cn(
-        "group/item marker:text-text-faint -ml-6 flex items-start gap-1 py-0.5 pl-6",
+        "group/item marker:text-text-faint -ms-6 flex items-start gap-1 py-0.5 ps-6",
         isDragging && "opacity-40",
+        isSelected && SELECTED_BLOCK_CLASS,
       )}
     >
       <button
         type="button"
         {...attributes}
         {...listeners}
-        aria-label="Drag to reorder"
+        aria-label={t("block.dragHandle")}
         className="text-text-faint hover:text-foreground mt-1 flex size-4 shrink-0 cursor-grab touch-none items-center justify-center opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
       >
         <GripVertical className="size-3.5" />

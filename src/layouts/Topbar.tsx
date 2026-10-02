@@ -1,6 +1,8 @@
-import { Menu, Moon, Search, Sun } from "lucide-react";
+import { Maximize2, Menu, Moon, Search, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/useT";
+import { useFocusModeStore } from "@/stores/useFocusModeStore";
 import { useSidebarStore } from "@/stores/useSidebarStore";
 import { useSearchStore } from "@/stores/useSearchStore";
 import { useTheme } from "@/hooks/useTheme";
@@ -24,16 +26,18 @@ function BrandMark() {
 
 export function Topbar() {
   const openMobile = useSidebarStore((s) => s.openMobile);
+  const t = useT();
+  const toggleFocusMode = useFocusModeStore((s) => s.toggle);
   const openCommandPalette = useSearchStore((s) => s.openCommandPalette);
   const { resolvedTheme, setTheme } = useTheme();
 
   return (
-    <header className="border-border bg-background/85 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur-md">
+    <header className="border-border bg-background/85 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur-md print:hidden">
       <Button
         variant="ghost"
         size="icon"
         className="md:hidden"
-        aria-label="Open navigation"
+        aria-label={t("topbar.openNav")}
         onClick={openMobile}
       >
         <Menu className="size-4" />
@@ -50,7 +54,7 @@ export function Topbar() {
         variant="outline"
         size="icon"
         className="sm:hidden"
-        aria-label="Search"
+        aria-label={t("topbar.search")}
         onClick={openCommandPalette}
       >
         <Search className="size-3.5" />
@@ -63,8 +67,8 @@ export function Topbar() {
         onClick={openCommandPalette}
       >
         <Search className="size-3.5" />
-        Search
-        <kbd className="border-border text-text-faint ml-1 rounded border px-1.5 py-0.5 font-mono text-[10px]">
+        {t("topbar.search")}
+        <kbd className="border-border text-text-faint ms-1 rounded border px-1.5 py-0.5 font-mono text-[10px]">
           ⌘K
         </kbd>
       </Button>
@@ -72,7 +76,17 @@ export function Topbar() {
       <Button
         variant="ghost"
         size="icon"
-        aria-label="Toggle color theme"
+        aria-label={t("topbar.enterFocus")}
+        title={t("topbar.focusTitle")}
+        onClick={toggleFocusMode}
+      >
+        <Maximize2 className="size-4" />
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={t("topbar.toggleTheme")}
         onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
       >
         {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}

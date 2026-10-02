@@ -220,7 +220,7 @@ export function BoardBlockView({ columns, onChange }: BoardBlockViewProps) {
       <DragOverlay>
         {activeCard ? (
           <div className="border-border bg-card w-64 rounded-md border p-3 text-sm shadow-lg">
-            {activeCard.icon && <span className="mr-1.5">{activeCard.icon}</span>}
+            {activeCard.icon && <span className="me-1.5">{activeCard.icon}</span>}
             {activeCard.title || "Untitled card"}
           </div>
         ) : null}
@@ -278,6 +278,7 @@ function BoardColumnView({
             value={column.title}
             onChange={(e) => onRename(e.target.value)}
             aria-label="Column title"
+            dir="auto"
             className="min-w-0 flex-1 truncate bg-transparent outline-none"
           />
         </span>
@@ -314,7 +315,7 @@ function BoardColumnView({
         type="button"
         onClick={onAddCard}
         aria-label={`Add card to ${column.title || "column"}`}
-        className="text-text-faint hover:bg-secondary hover:text-foreground mt-1.5 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm"
+        className="text-text-faint hover:bg-secondary hover:text-foreground mt-1.5 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-start text-sm"
       >
         <Plus className="size-3.5" />
         New
@@ -392,6 +393,7 @@ function BoardCardItem({ card, onRename, onSetIcon, onDelete }: BoardCardItemPro
         onChange={(e) => onRename(e.target.value)}
         placeholder="Untitled card"
         aria-label="Card title"
+        dir="auto"
         className="min-w-0 flex-1 bg-transparent outline-none"
       />
       <button

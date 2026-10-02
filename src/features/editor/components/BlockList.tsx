@@ -79,7 +79,7 @@ export function BlockList({ pageId, parentBlockId = null }: BlockListProps) {
           const ListTag = run.type === "numberedList" ? "ol" : "ul";
           const runKey = run.blocks[0].id;
           return (
-            <ListTag key={runKey} className="flex flex-col gap-0.5 pl-0.5">
+            <ListTag key={runKey} className="flex flex-col gap-0.5 ps-0.5">
               {run.blocks.map((block, itemIndex) => {
                 const index = blocks.findIndex((b) => b.id === block.id);
                 return (

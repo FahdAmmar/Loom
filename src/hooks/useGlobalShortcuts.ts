@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 
+import { useFocusModeStore } from "@/stores/useFocusModeStore";
 import { usePageStore } from "@/stores/usePageStore";
 import { useSearchStore } from "@/stores/useSearchStore";
 
@@ -18,7 +19,10 @@ export function useGlobalShortcuts() {
       if (!isMod) return;
       const key = event.key.toLowerCase();
 
-      if (key === "k") {
+      if (key === "f" && event.shiftKey) {
+        event.preventDefault();
+        useFocusModeStore.getState().toggle();
+      } else if (key === "k") {
         event.preventDefault();
         toggleCommandPalette();
       } else if (key === "n") {

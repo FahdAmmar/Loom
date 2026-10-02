@@ -2,8 +2,12 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/stores/useSettingsStore";
 
-export const DropdownMenu = DropdownMenuPrimitive.Root;
+export function DropdownMenu(props: ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+  const direction = useSettingsStore((s) => s.direction);
+  return <DropdownMenuPrimitive.Root dir={direction} {...props} />;
+}
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 export function DropdownMenuContent({

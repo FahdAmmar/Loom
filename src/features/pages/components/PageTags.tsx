@@ -97,7 +97,7 @@ export function PageTags({ pageId }: { pageId: string }) {
       </button>
 
       {isPicking && (
-        <div className="border-border bg-popover text-popover-foreground absolute top-full left-0 z-20 mt-1 w-56 rounded-md border p-1.5 shadow-md">
+        <div className="border-border bg-popover text-popover-foreground absolute start-0 top-full z-20 mt-1 w-56 rounded-md border p-1.5 shadow-md">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -118,7 +118,7 @@ export function PageTags({ pageId }: { pageId: string }) {
                 key={tag.id}
                 type="button"
                 onClick={() => addExisting(tag.id)}
-                className="hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                className="hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm"
               >
                 <span className={cn("size-2 rounded-full", TAG_COLOR_CLASSES[tag.color])} />
                 {tag.name}
@@ -128,7 +128,7 @@ export function PageTags({ pageId }: { pageId: string }) {
               <button
                 type="button"
                 onClick={createAndAdd}
-                className="hover:bg-accent text-muted-foreground flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                className="hover:bg-accent text-muted-foreground flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm"
               >
                 <Plus className="size-3.5" />
                 Create "{query.trim()}"

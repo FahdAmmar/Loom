@@ -1,12 +1,14 @@
 import { Dialog } from "@/components/ui/dialog";
+import type { MessageKey } from "@/i18n";
+import { useT } from "@/i18n/useT";
 
 interface Shortcut {
   keys: string[];
-  description: string;
+  description: MessageKey;
 }
 
 interface ShortcutGroup {
-  title: string;
+  title: MessageKey;
   shortcuts: Shortcut[];
 }
 
@@ -17,49 +19,51 @@ interface ShortcutGroup {
 // define those, Tiptap's defaults do.
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
-    title: "Global",
+    title: "shortcuts.global",
     shortcuts: [
-      { keys: ["⌘", "K"], description: "Open search & commands" },
-      { keys: ["⌘", "N"], description: "Create a new page" },
+      { keys: ["⌘", "K"], description: "shortcuts.search" },
+      { keys: ["⌘", "N"], description: "shortcuts.newPage" },
+      { keys: ["⌘", "⇧", "F"], description: "shortcuts.focus" },
     ],
   },
   {
-    title: "Blocks",
+    title: "shortcuts.blocks",
     shortcuts: [
-      { keys: ["/"], description: "Insert a block" },
-      { keys: ["[", "["], description: "Link to a page (or type @)" },
-      { keys: ["Enter"], description: "New block below" },
-      { keys: ["Shift", "Enter"], description: "Line break within a block" },
-      { keys: ["Backspace"], description: "Delete an empty block, merge into the one above" },
-      { keys: ["↑", "↓"], description: "Move to the previous or next block" },
+      { keys: ["/"], description: "shortcuts.insertBlock" },
+      { keys: ["[", "["], description: "shortcuts.linkPage" },
+      { keys: ["Enter"], description: "shortcuts.newBlock" },
+      { keys: ["Shift", "Enter"], description: "shortcuts.lineBreak" },
+      { keys: ["Backspace"], description: "shortcuts.deleteEmpty" },
+      { keys: ["↑", "↓"], description: "shortcuts.moveBetween" },
     ],
   },
   {
-    title: "Text formatting",
+    title: "shortcuts.formatting",
     shortcuts: [
-      { keys: ["⌘", "B"], description: "Bold" },
-      { keys: ["⌘", "I"], description: "Italic" },
-      { keys: ["⌘", "U"], description: "Underline" },
-      { keys: ["⌘", "⇧", "S"], description: "Strikethrough" },
-      { keys: ["⌘", "E"], description: "Inline code" },
-      { keys: ["⌘", "Z"], description: "Undo (within the current block)" },
-      { keys: ["⌘", "⇧", "Z"], description: "Redo (within the current block)" },
+      { keys: ["⌘", "B"], description: "shortcuts.bold" },
+      { keys: ["⌘", "I"], description: "shortcuts.italic" },
+      { keys: ["⌘", "U"], description: "shortcuts.underline" },
+      { keys: ["⌘", "⇧", "S"], description: "shortcuts.strike" },
+      { keys: ["⌘", "E"], description: "shortcuts.code" },
+      { keys: ["⌘", "Z"], description: "shortcuts.undo" },
+      { keys: ["⌘", "⇧", "Z"], description: "history.redo" },
     ],
   },
 ];
 
 export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   return (
-    <Dialog open={open} onClose={onClose} aria-label="Keyboard shortcuts" className="p-0">
+    <Dialog open={open} onClose={onClose} aria-label={t("shortcuts.title")} className="p-0">
       <div className="border-border border-b px-4 py-3">
-        <h2 className="text-sm font-medium">Keyboard shortcuts</h2>
+        <h2 className="text-sm font-medium">{t("shortcuts.title")}</h2>
       </div>
 
       <div className="flex max-h-[70vh] flex-col gap-5 overflow-y-auto p-4">
         {SHORTCUT_GROUPS.map((group) => (
           <div key={group.title}>
             <h3 className="text-text-faint mb-2 text-xs font-medium tracking-wide uppercase">
-              {group.title}
+              {t(group.title)}
             </h3>
             <ul className="flex flex-col gap-1.5">
               {group.shortcuts.map((shortcut) => (
@@ -67,7 +71,7 @@ export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () 
                   key={shortcut.description}
                   className="flex items-center justify-between gap-4 text-sm"
                 >
-                  <span className="text-muted-foreground">{shortcut.description}</span>
+                  <span className="text-muted-foreground">{t(shortcut.description)}</span>
                   <span className="flex shrink-0 items-center gap-1">
                     {/* SHORTCUT_GROUPS is a static constant, never reordered
                         or filtered, so an index key can't cause the stale

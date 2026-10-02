@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import type { MarkedToken, Token, Tokens } from "marked";
 
+import { parseHtmlFragment } from "@/lib/html";
 import type { BlockType } from "@/types/entities";
 
 export interface BlockDraft {
@@ -121,9 +122,7 @@ function tableCellText(
   resolveTitle: (title: string) => string | null,
 ): string {
   const html = inlineTokensToHtml(tokens, resolveTitle);
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  return container.textContent ?? "";
+  return parseHtmlFragment(html).textContent ?? "";
 }
 
 function blockTokenToDrafts(

@@ -4,6 +4,8 @@ import {
   Bold,
   Check,
   Code,
+  Eraser,
+  Highlighter,
   Italic,
   Link2,
   Strikethrough,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
+import { HIGHLIGHT_COLORS, type HighlightColor } from "@/features/editor/extensions/Highlight";
 import { cn } from "@/lib/utils";
 import { normalizeLinkUrl } from "@/lib/url";
 
@@ -34,6 +37,7 @@ export function SelectionToolbar({ editor }: SelectionToolbarProps) {
   const [isEditingLink, setEditingLink] = useState(false);
   const [linkValue, setLinkValue] = useState("");
   const [isLinkInvalid, setLinkInvalid] = useState(false);
+  const [isPickingHighlight, setPickingHighlight] = useState(false);
   const linkInputRef = useRef<HTMLInputElement>(null);
 
   const active = useEditorState({
@@ -45,6 +49,9 @@ export function SelectionToolbar({ editor }: SelectionToolbarProps) {
       strike: e.isActive("strike"),
       code: e.isActive("code"),
       link: e.isActive("link"),
+      highlight: e.isActive("highlight"),
+      highlightColor:
+        (e.getAttributes("highlight").color as HighlightColor | undefined) ?? null,
     }),
   });
 
@@ -56,7 +63,10 @@ export function SelectionToolbar({ editor }: SelectionToolbarProps) {
       offset: 8,
       flip: true,
       shift: { padding: 8 },
-      onHide: () => setEditingLink(false),
+      onHide: () => {
+        setEditingLink(false);
+        setPickingHighlight(false);
+      },
     }),
     [],
   );
@@ -64,6 +74,13 @@ export function SelectionToolbar({ editor }: SelectionToolbarProps) {
   useEffect(() => {
     if (isEditingLink) linkInputRef.current?.focus();
   }, [isEditingLink]);
+
+  function applyHighlight(color: HighlightColor) {
+    // Picking the color already applied toggles it off.
+    if (active.highlightColor === color) editor.chain().focus().unsetHighlight().run();
+    else editor.chain().focus().setHighlight(color).run();
+    setPickingHighlight(false);
+  }
 
   function startEditingLink() {
     const currentHref = editor.getAttributes("link").href;
@@ -142,7 +159,54 @@ export function SelectionToolbar({ editor }: SelectionToolbarProps) {
       options={menuOptions}
       className="border-border bg-popover text-popover-foreground z-50 flex items-center gap-0.5 rounded-md border p-1 shadow-lg"
     >
-      {isEditingLink ? (
+      {isPickingHighlight ? (
+        <fieldset className="m-0 flex min-w-0 items-center gap-1 border-0 p-0">
+          <legend className="sr-only">Highlight color</legend>
+          {HIGHLIGHT_COLORS.map((color) => {
+            const isCurrent = active.highlightColor === color;
+            return (
+              <button
+                key={color}
+                type="button"
+                aria-label={`${color} highlight`}
+                aria-pressed={isCurrent}
+                title={`${color[0].toUpperCase()}${color.slice(1)} highlight`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => applyHighlight(color)}
+                style={{ backgroundColor: `var(--highlight-${color})` }}
+                className="border-border text-foreground flex size-7 items-center justify-center rounded border"
+              >
+                {isCurrent && <Check className="size-3.5" />}
+              </button>
+            );
+          })}
+          {active.highlight && (
+            <button
+              type="button"
+              aria-label="Remove highlight"
+              title="Remove highlight"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                editor.chain().focus().unsetHighlight().run();
+                setPickingHighlight(false);
+              }}
+              className={BUTTON_CLASS}
+            >
+              <Eraser className="size-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Close highlight colors"
+            title="Close"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setPickingHighlight(false)}
+            className={BUTTON_CLASS}
+          >
+            <X className="size-3.5" />
+          </button>
+        </fieldset>
+      ) : isEditingLink ? (
         <div className="flex items-center gap-1">
           <input
             ref={linkInputRef}
@@ -183,7 +247,7 @@ export function SelectionToolbar({ editor }: SelectionToolbarProps) {
             <X className="size-3.5" />
           </button>
           {isLinkInvalid && (
-            <span role="alert" className="text-destructive pr-1 text-xs">
+            <span role="alert" className="text-destructive pe-1 text-xs">
               Enter a valid web address
             </span>
           )}
@@ -229,6 +293,17 @@ export function SelectionToolbar({ editor }: SelectionToolbarProps) {
               <Unlink className="size-3.5" />
             </button>
           )}
+          <button
+            type="button"
+            aria-label="Highlight"
+            aria-pressed={active.highlight}
+            title="Highlight"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setPickingHighlight(true)}
+            className={cn(BUTTON_CLASS, active.highlight && BUTTON_ACTIVE_CLASS)}
+          >
+            <Highlighter className="size-3.5" />
+          </button>
         </>
       )}
     </BubbleMenu>

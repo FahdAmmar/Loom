@@ -46,7 +46,7 @@ export function SlashMenu({
                 onSelect(command);
               }}
               className={
-                "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm " +
+                "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm " +
                 (index === activeIndex
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground")

@@ -94,7 +94,7 @@ export function TemplatesRoute() {
             <button
               type="button"
               onClick={() => handleUse(template.id)}
-              className="focus-visible:ring-ring block w-full rounded-lg text-left focus-visible:ring-2 focus-visible:outline-none"
+              className="focus-visible:ring-ring block w-full rounded-lg text-start focus-visible:ring-2 focus-visible:outline-none"
             >
               <div className="border-border bg-card relative aspect-4/5 overflow-hidden rounded-lg border">
                 <TemplatePreview template={template} />
@@ -116,7 +116,7 @@ export function TemplatesRoute() {
                 handleDelete(template.id);
               }}
               aria-label={`Delete template ${template.name}`}
-              className="bg-background/90 text-muted-foreground hover:text-destructive absolute top-2 right-2 flex size-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+              className="bg-background/90 text-muted-foreground hover:text-destructive absolute end-2 top-2 flex size-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
             >
               <Trash2 className="size-3.5" />
             </button>

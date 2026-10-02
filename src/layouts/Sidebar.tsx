@@ -15,21 +15,24 @@ import { FavoritesList } from "@/features/workspace/components/FavoritesList";
 import { PageTree } from "@/features/workspace/components/PageTree";
 import { RecentsList } from "@/features/workspace/components/RecentsList";
 import { useDialogElement } from "@/hooks/useDialogElement";
+import type { MessageKey } from "@/i18n";
+import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores/useSidebarStore";
 
 const WORKSPACE_ID = "default";
 
-const NAV_ITEMS = [
-  { to: `/w/${WORKSPACE_ID}/graph`, label: "Graph", icon: Network },
-  { to: `/w/${WORKSPACE_ID}/tags`, label: "Tags", icon: Tag },
-  { to: `/w/${WORKSPACE_ID}/templates`, label: "Templates", icon: FileStack },
+const NAV_ITEMS: { to: string; labelKey: MessageKey; icon: typeof Network }[] = [
+  { to: `/w/${WORKSPACE_ID}/graph`, labelKey: "nav.graph", icon: Network },
+  { to: `/w/${WORKSPACE_ID}/tags`, labelKey: "nav.tags", icon: Tag },
+  { to: `/w/${WORKSPACE_ID}/templates`, labelKey: "nav.templates", icon: FileStack },
 ];
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
+  const t = useT();
   return (
     <nav className="flex flex-col gap-1 px-2">
-      {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+      {NAV_ITEMS.map(({ to, labelKey, icon: Icon }) => (
         <NavLink
           viewTransition
           key={to}
@@ -43,7 +46,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
           }
         >
           <Icon className="size-4 shrink-0" />
-          {label}
+          {t(labelKey)}
         </NavLink>
       ))}
     </nav>
@@ -57,6 +60,7 @@ function SettingsLink({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const t = useT();
   return (
     <NavLink
       viewTransition
@@ -70,7 +74,7 @@ function SettingsLink({
       }
     >
       <Settings className="size-4 shrink-0" />
-      {!collapsed && "Settings"}
+      {!collapsed && t("nav.settings")}
     </NavLink>
   );
 }
@@ -88,6 +92,7 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function Sidebar() {
+  const t = useT();
   const isCollapsed = useSidebarStore((s) => s.isCollapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggleCollapsed);
   const isMobileOpen = useSidebarStore((s) => s.isMobileOpen);
@@ -101,7 +106,7 @@ export function Sidebar() {
       {/* Desktop rail */}
       <aside
         className={cn(
-          "border-border bg-background hidden shrink-0 flex-col border-r md:flex",
+          "border-border bg-background hidden shrink-0 flex-col border-e md:flex print:hidden",
           isCollapsed ? "w-16" : "w-64",
         )}
       >
@@ -118,14 +123,14 @@ export function Sidebar() {
             type="button"
             onClick={toggleCollapsed}
             className="text-muted-foreground hover:bg-accent hover:text-accent-foreground mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm"
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={isCollapsed ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
           >
             {isCollapsed ? (
-              <ChevronsRight className="size-4 shrink-0" />
+              <ChevronsRight className="size-4 shrink-0 rtl:-scale-x-100" />
             ) : (
               <>
-                <ChevronsLeft className="size-4 shrink-0" />
-                Collapse
+                <ChevronsLeft className="size-4 shrink-0 rtl:-scale-x-100" />
+                {t("nav.collapse")}
               </>
             )}
           </button>
@@ -137,21 +142,23 @@ export function Sidebar() {
           button, a nav/page tap, or native ESC handling. */}
       <dialog
         ref={dialogRef}
-        aria-label="Navigation"
+        aria-label={t("nav.navigation")}
         onClose={closeMobile}
         className={cn(
-          "drawer-animated border-border bg-background m-0 h-dvh max-h-dvh w-64 max-w-none border-0 border-r p-0",
+          "drawer-animated border-border bg-background m-0 h-dvh max-h-dvh w-64 max-w-none border-0 border-e p-0",
           "backdrop:bg-black/40",
-          "fixed inset-y-0 left-0 md:hidden",
+          "fixed inset-y-0 start-0 md:hidden",
         )}
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-3 pt-3 pb-1">
-            <span className="text-muted-foreground text-sm font-medium">Navigation</span>
+            <span className="text-muted-foreground text-sm font-medium">
+              {t("nav.navigation")}
+            </span>
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Close navigation"
+              aria-label={t("nav.closeNavigation")}
               onClick={closeMobile}
             >
               <X className="size-4" />

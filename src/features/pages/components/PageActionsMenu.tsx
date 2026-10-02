@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, MoreHorizontal, Plus, Star, StarOff, Trash2 } from "lucide-react";
+import { Copy, MoreHorizontal, Plus, Printer, Star, StarOff, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -54,6 +54,11 @@ export function PageActionsMenu({
     toast(`Saved "${pageTitle}" as a template`, "success");
   }
 
+  function handlePrint() {
+    // Wait a frame so the closing menu is gone before the browser snapshots the page.
+    requestAnimationFrame(() => window.print());
+  }
+
   async function handleDuplicate() {
     const copy = await duplicatePage(pageId);
     navigate(`/w/${WORKSPACE_ID}/p/${copy.id}`, { viewTransition: true });
@@ -105,6 +110,10 @@ export function PageActionsMenu({
           <DropdownMenuItem onSelect={handleDuplicate}>
             <Copy className="size-3.5" />
             Duplicate
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={handlePrint}>
+            <Printer className="size-3.5" />
+            Print / Save as PDF
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={handleDeleteSelect}>

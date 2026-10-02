@@ -282,7 +282,7 @@ export function GraphView() {
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
-      <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-2">
+      <div className="absolute start-4 top-4 z-10 flex flex-col items-start gap-2">
         <div className="border-border bg-card flex items-center gap-2 rounded-md border px-3 py-1.5 shadow-sm">
           <Search className="text-text-faint size-3.5 shrink-0" />
           <input
@@ -321,7 +321,7 @@ export function GraphView() {
         )}
       </div>
 
-      <div className="border-border bg-card absolute top-4 right-4 z-10 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm">
+      <div className="border-border bg-card absolute end-4 top-4 z-10 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm">
         <button
           type="button"
           onClick={() => zoomBy(0.8)}

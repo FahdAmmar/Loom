@@ -2,6 +2,7 @@ import { FileText, Loader2, Paperclip, Upload, X } from "lucide-react";
 import { useRef, useState, type ChangeEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { MAX_UPLOAD_BYTES, readFileAsDataUrl } from "@/features/editor/uploads";
 import { useToast } from "@/hooks/useToast";
 
 interface FileBlockViewProps {
@@ -10,20 +11,6 @@ interface FileBlockViewProps {
   size?: number;
   onChange: (content: { url: string; name?: string; size?: number }) => void;
   onBackspaceEmpty: () => void;
-}
-
-// Same reasoning as ImageBlockView's cap — a data URI lives directly in
-// the block's content, sharing localStorage's shared ~5MB-per-origin quota
-// across every page, so one attachment can't be allowed to eat most of it.
-const MAX_UPLOAD_BYTES = 1.5 * 1024 * 1024;
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error ?? new Error("Couldn't read that file."));
-    reader.readAsDataURL(file);
-  });
 }
 
 function formatBytes(bytes: number): string {
