@@ -1,5 +1,6 @@
 import { ApiError } from "@/api/client";
 import { mockDb, networkDelay } from "@/api/_mockDb";
+import { describeIssue, workspaceExportSchema } from "@/api/backupSchema";
 import type {
   Block,
   Link,
@@ -52,9 +53,8 @@ export async function exportWorkspace(workspaceId: string): Promise<WorkspaceExp
   };
 }
 
-/** A structural check, not full schema validation — enough to catch "wrong
- * file entirely" without hand-rolling a JSON schema validator for a
- * single-user local import. */
+/** Validates the whole file against a schema, so a bad backup fails here with a
+ * precise message instead of corrupting the workspace halfway through a restore. */
 export function parseWorkspaceExport(raw: string): WorkspaceExport {
   let data: unknown;
   try {
@@ -62,20 +62,16 @@ export function parseWorkspaceExport(raw: string): WorkspaceExport {
   } catch {
     throw new ApiError("That file isn't valid JSON.");
   }
-  const v = data as Partial<WorkspaceExport> | null;
-  if (
-    !v ||
-    typeof v.formatVersion !== "number" ||
-    !v.workspace ||
-    !Array.isArray(v.pages) ||
-    !Array.isArray(v.blocks)
-  ) {
-    throw new ApiError("That file doesn't look like a Loom workspace export.");
-  }
-  if (v.formatVersion > EXPORT_FORMAT_VERSION) {
+  const version = (data as { formatVersion?: unknown } | null)?.formatVersion;
+  if (typeof version === "number" && version > EXPORT_FORMAT_VERSION) {
     throw new ApiError("This file was exported by a newer version of Loom.");
   }
-  return v as WorkspaceExport;
+  const result = workspaceExportSchema.safeParse(data);
+  if (!result.success) {
+    const first = describeIssue(result.error.issues[0]);
+    throw new ApiError(`That file doesn't look like a Loom workspace export (${first}).`);
+  }
+  return result.data as WorkspaceExport;
 }
 
 /**

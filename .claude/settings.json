@@ -12,14 +12,8 @@
       "Bash(git diff *)",
       "Bash(git log *)"
     ],
-    "ask": [
-      "Bash(git push *)",
-      "Bash(npm install *)"
-    ],
-    "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)"
-    ]
+    "ask": ["Bash(git push *)", "Bash(npm install *)"],
+    "deny": ["Read(./.env)", "Read(./.env.*)"]
   },
   "hooks": {
     "PreToolUse": [

@@ -1,11 +1,18 @@
 import { ChevronDown, ChevronUp, ChevronsUpDown, Plus } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "react-router";
 
 import * as propertiesApi from "@/api/pageProperties";
 import { Button } from "@/components/ui/button";
 import type { DerivedColumn } from "@/features/database/tableUtils";
-import { sortPagesByColumn } from "@/features/database/tableUtils";
+import { TableFilters } from "@/features/database/components/TableFilters";
+import {
+  filterPages,
+  groupPagesByColumn,
+  sortPagesByColumn,
+  type TableFilter,
+} from "@/features/database/tableUtils";
+import { useT } from "@/i18n/useT";
 import { PropertyValueInput } from "@/features/pages/components/PageProperties";
 import { cn } from "@/lib/utils";
 import type { Page, PageProperty, PagePropertyType } from "@/types/entities";
@@ -33,6 +40,9 @@ export function TableView({
   onPropertiesChange,
   onAddPage,
 }: TableViewProps) {
+  const t = useT();
+  const [filters, setFilters] = useState<TableFilter[]>([]);
+  const [groupKey, setGroupKey] = useState("");
   const [sort, setSort] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
   const [isAddingColumn, setAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
@@ -86,140 +96,208 @@ export function TableView({
   }
 
   const sortColumn = columns.find((c) => c.key === sort?.key);
+  const filtered = filterPages(pages, properties, columns, filters);
   const rows =
     sort && sortColumn
-      ? sortPagesByColumn(pages, properties, sortColumn, sort.direction)
-      : pages;
+      ? sortPagesByColumn(filtered, properties, sortColumn, sort.direction)
+      : filtered;
+  const groupColumn = columns.find((c) => c.key === groupKey);
+  const groups = groupColumn ? groupPagesByColumn(rows, properties, groupColumn) : null;
 
-  return (
-    <div className="border-border overflow-x-auto rounded-md border">
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-border border-b">
-            <th scope="col" className="text-muted-foreground px-3 py-2 text-start font-medium">
-              Name
-            </th>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                scope="col"
-                className="text-muted-foreground border-border border-s px-3 py-2 text-start font-medium"
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleSort(column)}
-                  className="hover:text-foreground flex items-center gap-1"
-                >
-                  {column.key}
-                  {sort?.key === column.key ? (
-                    sort.direction === "asc" ? (
-                      <ChevronUp className="size-3.5" />
-                    ) : (
-                      <ChevronDown className="size-3.5" />
-                    )
-                  ) : (
-                    <ChevronsUpDown className="text-text-faint size-3.5" />
-                  )}
-                </button>
-              </th>
-            ))}
-            <th scope="col" className="border-border border-s px-2 py-2">
-              {isAddingColumn ? (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    value={newColumnName}
-                    onChange={(e) => setNewColumnName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAddColumn()}
-                    placeholder="Property name"
-                    dir="auto"
-                    className="border-border w-24 rounded border bg-transparent px-1.5 py-1 text-xs font-normal outline-none"
-                  />
-                  <select
-                    value={newColumnType}
-                    onChange={(e) => setNewColumnType(e.target.value as PagePropertyType)}
-                    className="border-border rounded border bg-transparent px-1 py-1 text-xs font-normal"
-                  >
-                    {PROPERTY_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleAddColumn}
-                    disabled={!newColumnName.trim()}
-                    className={cn(
-                      "text-xs font-medium",
-                      newColumnName.trim() ? "text-primary" : "text-text-faint",
-                    )}
-                  >
-                    Add
-                  </button>
-                </div>
+  function groupLabel(value: PageProperty["value"], column: DerivedColumn): string {
+    if (value === null) return t("group.empty");
+    if (column.type === "checkbox") return value ? t("group.checked") : t("group.unchecked");
+    return String(value);
+  }
+
+  function renderRow(page: Page) {
+    return (
+      <tr key={page.id} className="border-border border-b last:border-b-0">
+        <td className="px-3 py-1.5">
+          <Link
+            viewTransition
+            to={`/w/${page.workspaceId}/p/${page.id}`}
+            className="text-foreground hover:underline"
+          >
+            {page.title || "Untitled"}
+          </Link>
+        </td>
+        {columns.map((column) => {
+          const property = properties.find((p) => p.pageId === page.id && p.key === column.key);
+          return (
+            <td key={column.key} className="border-border border-s px-3 py-1.5">
+              {property ? (
+                <PropertyValueInput
+                  property={property}
+                  onChange={(v) => handleCellChange(property, v)}
+                />
               ) : (
                 <button
                   type="button"
-                  onClick={() => setAddingColumn(true)}
-                  aria-label="Add column"
-                  title="Add column"
-                  className="text-text-faint hover:text-foreground flex size-6 items-center justify-center rounded"
+                  onClick={() => handleCreateCellValue(page, column)}
+                  aria-label={`Set ${column.key} for ${page.title}`}
+                  className="text-text-faint hover:text-foreground text-xs"
                 >
-                  <Plus className="size-3.5" />
+                  Set value
                 </button>
               )}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((page) => (
-            <tr key={page.id} className="border-border border-b last:border-b-0">
-              <td className="px-3 py-1.5">
-                <Link
-                  viewTransition
-                  to={`/w/${page.workspaceId}/p/${page.id}`}
-                  className="text-foreground hover:underline"
+            </td>
+          );
+        })}
+        <td className="border-border border-s" aria-hidden="true" />
+      </tr>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-start gap-3">
+        <TableFilters columns={columns} filters={filters} onChange={setFilters} />
+        {columns.length > 0 && (
+          <label className="text-muted-foreground flex items-center gap-2 text-xs">
+            {t("group.by")}
+            <select
+              value={groupKey}
+              onChange={(e) => setGroupKey(e.target.value)}
+              className="border-border rounded border bg-transparent px-1.5 py-1 text-xs"
+            >
+              <option value="">{t("group.none")}</option>
+              {columns.map((column) => (
+                <option key={column.key} value={column.key}>
+                  {column.key}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+      <div className="border-border overflow-x-auto rounded-md border">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-border border-b">
+              <th
+                scope="col"
+                className="text-muted-foreground px-3 py-2 text-start font-medium"
+              >
+                Name
+              </th>
+              {columns.map((column) => (
+                <th
+                  key={column.key}
+                  scope="col"
+                  className="text-muted-foreground border-border border-s px-3 py-2 text-start font-medium"
                 >
-                  {page.title || "Untitled"}
-                </Link>
-              </td>
-              {columns.map((column) => {
-                const property = properties.find(
-                  (p) => p.pageId === page.id && p.key === column.key,
-                );
-                return (
-                  <td key={column.key} className="border-border border-s px-3 py-1.5">
-                    {property ? (
-                      <PropertyValueInput
-                        property={property}
-                        onChange={(v) => handleCellChange(property, v)}
-                      />
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(column)}
+                    className="hover:text-foreground flex items-center gap-1"
+                  >
+                    {column.key}
+                    {sort?.key === column.key ? (
+                      sort.direction === "asc" ? (
+                        <ChevronUp className="size-3.5" />
+                      ) : (
+                        <ChevronDown className="size-3.5" />
+                      )
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleCreateCellValue(page, column)}
-                        aria-label={`Set ${column.key} for ${page.title}`}
-                        className="text-text-faint hover:text-foreground text-xs"
-                      >
-                        Set value
-                      </button>
+                      <ChevronsUpDown className="text-text-faint size-3.5" />
                     )}
-                  </td>
-                );
-              })}
-              <td className="border-border border-s" aria-hidden="true" />
+                  </button>
+                </th>
+              ))}
+              <th scope="col" className="border-border border-s px-2 py-2">
+                {isAddingColumn ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      value={newColumnName}
+                      onChange={(e) => setNewColumnName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddColumn()}
+                      placeholder="Property name"
+                      dir="auto"
+                      className="border-border w-24 rounded border bg-transparent px-1.5 py-1 text-xs font-normal outline-none"
+                    />
+                    <select
+                      value={newColumnType}
+                      onChange={(e) => setNewColumnType(e.target.value as PagePropertyType)}
+                      className="border-border rounded border bg-transparent px-1 py-1 text-xs font-normal"
+                    >
+                      {PROPERTY_TYPES.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleAddColumn}
+                      disabled={!newColumnName.trim()}
+                      className={cn(
+                        "text-xs font-medium",
+                        newColumnName.trim() ? "text-primary" : "text-text-faint",
+                      )}
+                    >
+                      Add
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAddingColumn(true)}
+                    aria-label="Add column"
+                    title="Add column"
+                    className="text-text-faint hover:text-foreground flex size-6 items-center justify-center rounded"
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                )}
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <button
-        type="button"
-        onClick={onAddPage}
-        className="text-text-faint hover:text-foreground hover:bg-accent flex w-full items-center gap-1.5 px-3 py-2 text-xs"
-      >
-        <Plus className="size-3.5" />
-        New page
-      </button>
+          </thead>
+          <tbody>
+            {groups
+              ? groups.map((group) => (
+                  <Fragment key={group.value === null ? "__empty" : `v:${String(group.value)}`}>
+                    <tr className="bg-muted/60 border-border border-b">
+                      <th
+                        scope="rowgroup"
+                        colSpan={columns.length + 2}
+                        className="text-foreground px-3 py-1.5 text-start text-xs font-semibold"
+                      >
+                        {groupLabel(group.value, groupColumn!)}
+                        <span className="text-text-faint ms-2 font-normal">
+                          {t(group.pages.length === 1 ? "group.countOne" : "group.count", {
+                            count: group.pages.length,
+                          })}
+                        </span>
+                      </th>
+                    </tr>
+                    {group.pages.map(renderRow)}
+                  </Fragment>
+                ))
+              : rows.map(renderRow)}
+          </tbody>
+        </table>
+        {rows.length === 0 && (
+          <div className="flex flex-col items-center gap-1 px-3 py-4 text-center">
+            <p className="text-muted-foreground text-sm">{t("filter.noMatches")}</p>
+            <button
+              type="button"
+              onClick={() => setFilters([])}
+              className="text-text-faint hover:text-foreground text-xs underline"
+            >
+              {t("filter.clear")}
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={onAddPage}
+          className="text-text-faint hover:text-foreground hover:bg-accent flex w-full items-center gap-1.5 px-3 py-2 text-xs"
+        >
+          <Plus className="size-3.5" />
+          New page
+        </button>
+      </div>
     </div>
   );
 }

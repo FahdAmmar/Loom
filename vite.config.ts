@@ -15,6 +15,19 @@ export default defineConfig({
       // so an in-progress edit is never interrupted by a reload.
       registerType: "prompt",
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
+      workbox: {
+        // Fonts are cached on first use, so unused unicode-range files are never downloaded.
+        runtimeCaching: [
+          {
+            urlPattern: /\.woff2$/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "fonts",
+              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+        ],
+      },
       manifest: {
         name: "Loom",
         short_name: "Loom",
@@ -36,6 +49,23 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        // Stable vendor chunks cache well across releases and load in parallel.
+        codeSplitting: {
+          groups: [
+            {
+              name: "react",
+              test: /node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/,
+            },
+            { name: "radix", test: /node_modules[\\/]@radix-ui[\\/]/ },
+            { name: "dnd", test: /node_modules[\\/]@dnd-kit[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

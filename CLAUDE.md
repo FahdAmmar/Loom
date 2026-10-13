@@ -4,6 +4,8 @@ A calm knowledge workspace: page hierarchy + a force-directed graph, client-side
 
 <!-- Personal notes go in CLAUDE.local.md (gitignored), not here. -->
 
+Documentation index: `docs/README.md`. Skills the project needs: `docs/skills.md`. Release notes: `docs/CHANGELOG.md`.
+
 ## Commands
 
 - `npm run dev` — start Vite dev server
@@ -20,8 +22,8 @@ Before calling any change done: **typecheck → lint → test → build**, in th
 ## Architecture — read before adding code
 
 - **`src/api/` is the only layer allowed to touch persistence.** Nothing else reads or writes `localStorage`/IndexedDB directly. Functions are `async` and shaped like a real REST call even though they hit a local mock (`api/_mockDb.ts`, `api/idbStorage.ts`) with a simulated network delay — the day a real backend exists, only these files change.
-- **Derived data is never stored twice.** The page tree, backlinks, and the graph layout are all *computed* from flat state (`lib/tree.ts`, filtering `Link` records, a live layout simulation) — never cached as a second copy. If you're about to add a field that duplicates something derivable, don't.
-- **State is split by who needs it.** Seven Zustand stores (`src/stores/`), one responsibility each. Purely local, single-component UI state (a zoom level, a query string) stays in `useState`, not a store.
+- **Derived data is never stored twice.** The page tree, backlinks, and the graph layout are all _computed_ from flat state (`lib/tree.ts`, filtering `Link` records, a live layout simulation) — never cached as a second copy. If you're about to add a field that duplicates something derivable, don't.
+- **State is split by who needs it.** Zustand stores (`src/stores/`, one `use<Name>Store.ts` per concern). Purely local, single-component UI state (a zoom level, a query string) stays in `useState`, not a store.
 - **Feature-first structure.** Each `src/features/<name>/` owns its components and a `README.md` describing what's real vs. a placeholder. Put new UI in the feature it belongs to, not in `src/components/`, which is for things shared across features.
 - **`src/lib/` is pure functions only** — no React, no store access. Test these first, before wiring up UI.
 
@@ -33,7 +35,7 @@ Full detail: `.claude/rules/architecture.md` and `.claude/rules/api-conventions.
 - Named exports for components, not `export default`. Props interface named `<Component>Props`.
 - Import via the `@/` alias (`@/lib/tree`), not relative `../../` chains.
 - Prettier owns formatting (double quotes, semicolons, trailing commas, 96-col, Tailwind class sorting) — don't hand-format, let the hook do it.
-- Comments explain *why*, not *what*. See `.claude/rules/code-style.md` for the full rundown.
+- Comments explain _why_, not _what_. See `.claude/rules/code-style.md` for the full rundown.
 
 ## Testing
 

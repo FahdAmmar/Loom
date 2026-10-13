@@ -1,16 +1,19 @@
 import { useRef } from "react";
 import {
   ChevronsLeft,
+  CheckSquare,
   ChevronsRight,
   FileStack,
   Network,
   Settings,
   Tag,
+  Trash2,
   X,
 } from "lucide-react";
 import { NavLink } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import { DailyNotesList } from "@/features/workspace/components/DailyNotesList";
 import { FavoritesList } from "@/features/workspace/components/FavoritesList";
 import { PageTree } from "@/features/workspace/components/PageTree";
 import { RecentsList } from "@/features/workspace/components/RecentsList";
@@ -24,8 +27,10 @@ const WORKSPACE_ID = "default";
 
 const NAV_ITEMS: { to: string; labelKey: MessageKey; icon: typeof Network }[] = [
   { to: `/w/${WORKSPACE_ID}/graph`, labelKey: "nav.graph", icon: Network },
+  { to: `/w/${WORKSPACE_ID}/tasks`, labelKey: "nav.tasks", icon: CheckSquare },
   { to: `/w/${WORKSPACE_ID}/tags`, labelKey: "nav.tags", icon: Tag },
   { to: `/w/${WORKSPACE_ID}/templates`, labelKey: "nav.templates", icon: FileStack },
+  { to: `/w/${WORKSPACE_ID}/trash`, labelKey: "nav.trash", icon: Trash2 },
 ];
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
@@ -85,6 +90,7 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full flex-col gap-4 overflow-y-auto py-3">
       <FavoritesList onNavigate={onNavigate} />
       <RecentsList onNavigate={onNavigate} />
+      <DailyNotesList onNavigate={onNavigate} />
       <PageTree onNavigate={onNavigate} />
       <NavList onNavigate={onNavigate} />
     </div>

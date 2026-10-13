@@ -91,6 +91,18 @@ export async function updatePageIcon(id: string, icon: string | undefined): Prom
   return updated;
 }
 
+export async function updatePageCover(id: string, cover: string | undefined): Promise<Page> {
+  await networkDelay(90);
+  const db = mockDb.read();
+  const existing = db.pages[id];
+  if (!existing) throw new ApiError(`No page found with id "${id}".`, 404);
+
+  const updated: Page = { ...existing, cover, updatedAt: new Date().toISOString() };
+  db.pages[id] = updated;
+  mockDb.write(db);
+  return updated;
+}
+
 export async function setFavorite(id: string, isFavorite: boolean): Promise<Page> {
   await networkDelay(90);
   const db = mockDb.read();

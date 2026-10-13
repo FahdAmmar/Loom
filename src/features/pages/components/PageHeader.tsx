@@ -3,12 +3,14 @@ import { ChevronRight } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 
 import { UndoRedoButtons } from "@/features/editor/components/UndoRedoButtons";
+import { CoverPicker } from "@/features/pages/components/CoverPicker";
 import { IconPicker } from "@/features/pages/components/IconPicker";
 import { PageActionsMenu } from "@/features/pages/components/PageActionsMenu";
 import { PageStyleButton } from "@/features/pages/components/PageStyleDialog";
 import { PageProperties } from "@/features/pages/components/PageProperties";
 import { PageTags } from "@/features/pages/components/PageTags";
 import { usePageLayout } from "@/hooks/usePageLayout";
+import { coverBackground } from "@/lib/covers";
 import { getAncestors } from "@/lib/tree";
 import { usePageStore } from "@/stores/usePageStore";
 import { useEditorStore } from "@/stores/useEditorStore";
@@ -31,6 +33,7 @@ export function PageHeader({ page }: { page: Page }) {
   const pagesById = usePageStore((s) => s.pagesById);
   const renamePage = usePageStore((s) => s.renamePage);
   const setPageIcon = usePageStore((s) => s.setPageIcon);
+  const setPageCover = usePageStore((s) => s.setPageCover);
   const { widthClass, fontClass } = usePageLayout(page.id);
   const [title, setTitle] = useState(page.title);
 
@@ -46,56 +49,69 @@ export function PageHeader({ page }: { page: Page }) {
   }
 
   return (
-    <div className="border-border border-b px-6 py-4">
-      <div className={`mx-auto ${widthClass} ${fontClass}`}>
-        <nav
-          aria-label="Breadcrumb"
-          className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
-        >
-          <Link viewTransition to={`/w/${WORKSPACE_ID}`} className="hover:text-foreground">
-            Workspace
-          </Link>
-          {ancestors.map((ancestor) => (
-            <span key={ancestor.id} className="flex items-center gap-1">
-              <ChevronRight className="size-3.5 shrink-0 rtl:-scale-x-100" />
-              <Link
-                viewTransition
-                to={`/w/${WORKSPACE_ID}/p/${ancestor.id}`}
-                className="hover:text-foreground truncate"
-              >
-                {ancestor.title}
-              </Link>
-            </span>
-          ))}
-        </nav>
+    <div className="border-border border-b">
+      {coverBackground(page.cover) && (
+        <div
+          aria-hidden="true"
+          className="h-28 w-full sm:h-36"
+          style={{ background: coverBackground(page.cover) }}
+        />
+      )}
+      <div className="px-6 py-4">
+        <div className={`mx-auto ${widthClass} ${fontClass}`}>
+          <nav
+            aria-label="Breadcrumb"
+            className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
+          >
+            <Link viewTransition to={`/w/${WORKSPACE_ID}`} className="hover:text-foreground">
+              Workspace
+            </Link>
+            {ancestors.map((ancestor) => (
+              <span key={ancestor.id} className="flex items-center gap-1">
+                <ChevronRight className="size-3.5 shrink-0 rtl:-scale-x-100" />
+                <Link
+                  viewTransition
+                  to={`/w/${WORKSPACE_ID}/p/${ancestor.id}`}
+                  className="hover:text-foreground truncate"
+                >
+                  {ancestor.title}
+                </Link>
+              </span>
+            ))}
+          </nav>
 
-        <div className="mt-2 flex items-center gap-2">
-          <IconPicker icon={page.icon} onChange={(icon) => setPageIcon(page.id, icon)} />
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={commitTitle}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-            aria-label="Page title"
-            dir="auto"
-            placeholder="Untitled"
-            className="text-foreground focus-visible:bg-accent -mx-1 min-w-0 flex-1 rounded-md bg-transparent px-1 text-2xl font-semibold outline-none"
-          />
-          <SaveStatusIndicator />
-          <UndoRedoButtons />
-          <PageStyleButton pageId={page.id} />
-          <PageActionsMenu
-            pageId={page.id}
-            pageTitle={page.title}
-            onDeleted={() => navigate(`/w/${WORKSPACE_ID}`, { viewTransition: true })}
-            triggerClassName="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground print:hidden"
-          />
+          <div className="mt-2 flex items-center gap-2">
+            <IconPicker icon={page.icon} onChange={(icon) => setPageIcon(page.id, icon)} />
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              aria-label="Page title"
+              dir="auto"
+              placeholder="Untitled"
+              className="text-foreground focus-visible:bg-accent -mx-1 min-w-0 flex-1 rounded-md bg-transparent px-1 text-2xl font-semibold outline-none"
+            />
+            <SaveStatusIndicator />
+            <UndoRedoButtons />
+            <CoverPicker
+              cover={page.cover}
+              onChange={(cover) => setPageCover(page.id, cover)}
+            />
+            <PageStyleButton pageId={page.id} />
+            <PageActionsMenu
+              pageId={page.id}
+              pageTitle={page.title}
+              onDeleted={() => navigate(`/w/${WORKSPACE_ID}`, { viewTransition: true })}
+              triggerClassName="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground print:hidden"
+            />
+          </div>
+
+          <PageTags pageId={page.id} />
+          <PageProperties pageId={page.id} />
         </div>
-
-        <PageTags pageId={page.id} />
-        <PageProperties pageId={page.id} />
       </div>
     </div>
   );

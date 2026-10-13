@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import {
   AlignHorizontalJustifyCenter,
+  Check,
   Compass,
   Download,
   Smartphone,
@@ -23,12 +24,16 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { useTheme } from "@/hooks/useTheme";
 import type { MessageKey } from "@/i18n";
+import { StorageStatus } from "@/features/settings/components/StorageStatus";
+import { MarkdownTransfer } from "@/features/settings/components/MarkdownTransfer";
 import { useT } from "@/i18n/useT";
 import { useToast } from "@/hooks/useToast";
 import { useOnboardingStore } from "@/stores/useOnboardingStore";
 import { useShortcutsDialogStore } from "@/stores/useShortcutsDialogStore";
 import {
+  ACCENT_COLORS,
   useSettingsStore,
+  type AccentColor,
   type EditorWidth,
   type UiDirection,
   type ThemePreference,
@@ -50,6 +55,14 @@ const EDITOR_WIDTH_OPTIONS: {
   { value: "narrow", label: "width.narrow", description: "width.narrowHelp" },
   { value: "wide", label: "width.wide", description: "width.wideHelp" },
 ];
+
+// Mid-tone swatches read clearly on both the light and dark backgrounds.
+const ACCENT_SWATCHES: Record<AccentColor, string> = {
+  gold: "#946521",
+  mint: "#187e5e",
+  violet: "#5a46d6",
+  rose: "#b4325e",
+};
 
 // Language names stay in their own script so they're findable whatever the current language is.
 const LANGUAGE_OPTIONS: { value: UiDirection; label: string; icon: typeof PilcrowLeft }[] = [
@@ -75,6 +88,8 @@ export function SettingsRoute() {
   const editorWidth = useSettingsStore((s) => s.editorWidth);
   const setEditorWidth = useSettingsStore((s) => s.setEditorWidth);
   const direction = useSettingsStore((s) => s.direction);
+  const accent = useSettingsStore((s) => s.accent);
+  const setAccent = useSettingsStore((s) => s.setAccent);
   const setDirection = useSettingsStore((s) => s.setDirection);
   const openShortcuts = useShortcutsDialogStore((s) => s.open);
   const openTour = useOnboardingStore((s) => s.open);
@@ -97,6 +112,7 @@ export function SettingsRoute() {
       link.download = `loom-${slugify(data.workspace.name)}-${data.exportedAt.slice(0, 10)}.json`;
       link.click();
       URL.revokeObjectURL(url);
+      useSettingsStore.getState().markBackupDone();
       toast(t("settings.exported"), "success");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : t("settings.exportFailed"), "error");
@@ -166,6 +182,27 @@ export function SettingsRoute() {
               <Icon className="size-4" />
               {t(label)}
             </Button>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-border mt-8 border-t pt-8">
+        <h2 className="text-foreground text-sm font-medium">{t("settings.accent")}</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{t("settings.accentHelp")}</p>
+        <div className="mt-3 flex gap-3">
+          {ACCENT_COLORS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={accent === value}
+              aria-label={t(`accent.${value}`)}
+              title={t(`accent.${value}`)}
+              onClick={() => setAccent(value)}
+              style={{ backgroundColor: ACCENT_SWATCHES[value] }}
+              className="ring-offset-background aria-pressed:ring-foreground flex size-9 items-center justify-center rounded-full ring-2 ring-transparent ring-offset-2"
+            >
+              {accent === value && <Check className="size-4 text-white" />}
+            </button>
           ))}
         </div>
       </section>
@@ -265,6 +302,8 @@ export function SettingsRoute() {
             ref={fileInputRef}
             type="file"
             accept="application/json"
+            aria-label={t("settings.import")}
+            tabIndex={-1}
             className="hidden"
             onChange={handleFileSelected}
           />
@@ -280,6 +319,10 @@ export function SettingsRoute() {
           {t("settings.reset")}
         </Button>
       </section>
+
+      <MarkdownTransfer />
+
+      <StorageStatus />
 
       <ConfirmDialog
         open={pendingImport !== null}

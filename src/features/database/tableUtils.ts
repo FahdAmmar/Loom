@@ -76,3 +76,164 @@ export function sortPagesByColumn(
 
   return [...withValue, ...withoutValue];
 }
+
+/** The Name column isn't a property, so filters address it with this reserved key. */
+export const TITLE_FILTER_KEY = "__title";
+
+export type FilterOperator =
+  | "contains"
+  | "equals"
+  | "notEquals"
+  | "gt"
+  | "lt"
+  | "isEmpty"
+  | "isNotEmpty"
+  | "checked"
+  | "unchecked";
+
+export interface TableFilter {
+  id: string;
+  key: string;
+  operator: FilterOperator;
+  value: string;
+}
+
+const OPERATORS_BY_TYPE: Record<PagePropertyType | "title", FilterOperator[]> = {
+  title: ["contains", "equals"],
+  text: ["contains", "equals", "notEquals", "isEmpty", "isNotEmpty"],
+  select: ["equals", "notEquals", "isEmpty", "isNotEmpty"],
+  number: ["equals", "gt", "lt", "isEmpty", "isNotEmpty"],
+  date: ["equals", "gt", "lt", "isEmpty", "isNotEmpty"],
+  checkbox: ["checked", "unchecked"],
+};
+
+export function operatorsForType(type: PagePropertyType | "title"): FilterOperator[] {
+  return OPERATORS_BY_TYPE[type];
+}
+
+/** Operators that compare against a typed value (the rest stand on their own). */
+export function operatorNeedsValue(operator: FilterOperator): boolean {
+  return !["isEmpty", "isNotEmpty", "checked", "unchecked"].includes(operator);
+}
+
+function matchesFilter(
+  cell: PageProperty["value"] | undefined,
+  type: PagePropertyType | "title",
+  filter: TableFilter,
+): boolean {
+  const empty = cell == null || cell === "";
+  switch (filter.operator) {
+    case "isEmpty":
+      return empty;
+    case "isNotEmpty":
+      return !empty;
+    case "checked":
+      return cell === true;
+    case "unchecked":
+      return cell !== true;
+  }
+
+  const wanted = filter.value.trim();
+  if (type === "number") {
+    if (empty) return false;
+    const a = Number(cell);
+    const b = Number(wanted);
+    if (filter.operator === "gt") return a > b;
+    if (filter.operator === "lt") return a < b;
+    return a === b;
+  }
+
+  const have = empty ? "" : String(cell).toLowerCase();
+  const want = wanted.toLowerCase();
+  switch (filter.operator) {
+    case "contains":
+      return have.includes(want);
+    case "equals":
+      return !empty && have === want;
+    case "notEquals":
+      return have !== want;
+    case "gt":
+      return !empty && have > want; // ISO dates compare correctly as strings
+    case "lt":
+      return !empty && have < want;
+    default:
+      return true;
+  }
+}
+
+/** A filter that still needs its value (or whose number is unreadable) is skipped, so typing never blanks the table. */
+function isFilterReady(filter: TableFilter, type: PagePropertyType | "title"): boolean {
+  if (!operatorNeedsValue(filter.operator)) return true;
+  const value = filter.value.trim();
+  if (value === "") return false;
+  return type !== "number" || !Number.isNaN(Number(value));
+}
+
+/** Keeps the pages that satisfy every ready filter (AND). */
+export function filterPages(
+  pages: Page[],
+  properties: PageProperty[],
+  columns: DerivedColumn[],
+  filters: TableFilter[],
+): Page[] {
+  const typeByKey = new Map<string, PagePropertyType | "title">(
+    columns.map((c) => [c.key, c.type]),
+  );
+  typeByKey.set(TITLE_FILTER_KEY, "title");
+
+  const active = filters.filter((f) => {
+    const type = typeByKey.get(f.key);
+    return type !== undefined && isFilterReady(f, type);
+  });
+  if (active.length === 0) return pages;
+
+  const cellByPageAndKey = new Map<string, PageProperty["value"]>(
+    properties.map((p) => [`${p.pageId}:${p.key}`, p.value]),
+  );
+
+  return pages.filter((page) =>
+    active.every((filter) => {
+      const type = typeByKey.get(filter.key)!;
+      const cell =
+        filter.key === TITLE_FILTER_KEY
+          ? page.title
+          : cellByPageAndKey.get(`${page.id}:${filter.key}`);
+      return matchesFilter(cell, type, filter);
+    }),
+  );
+}
+
+export interface PageGroup {
+  /** The raw cell value shared by the group; `null` collects pages with no value. */
+  value: PageProperty["value"];
+  pages: Page[];
+}
+
+/**
+ * Splits pages into groups by one column's value. Groups follow the
+ * column's natural order (numbers numerically, text alphabetically), with
+ * the "no value" group always last. Row order inside a group is preserved,
+ * so a sort applied beforehand still holds.
+ */
+export function groupPagesByColumn(
+  pages: Page[],
+  properties: PageProperty[],
+  column: DerivedColumn,
+): PageGroup[] {
+  const valueByPageId = new Map<string, PageProperty["value"]>(
+    properties.filter((p) => p.key === column.key).map((p) => [p.pageId, p.value]),
+  );
+
+  const groups = new Map<PageProperty["value"], Page[]>();
+  for (const page of pages) {
+    const raw = valueByPageId.get(page.id);
+    const value = raw === undefined || raw === "" ? null : raw;
+    const members = groups.get(value);
+    if (members) members.push(page);
+    else groups.set(value, [page]);
+  }
+
+  return [...groups.entries()]
+    .map(([value, members]) => ({ value, pages: members }))
+    .sort((a, b) => comparePropertyValues(a.value, b.value));
+}

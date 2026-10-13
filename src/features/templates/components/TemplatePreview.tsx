@@ -115,6 +115,15 @@ function renderBlock(block: PreviewBlock, key: number) {
       );
     }
 
+    case "math": {
+      const latex = typeof block.content.latex === "string" ? block.content.latex : "";
+      return (
+        <pre key={key} className="bg-muted overflow-hidden rounded-md p-2.5 font-mono text-xs">
+          {latex}
+        </pre>
+      );
+    }
+
     case "divider":
       return <hr key={key} className="border-border" />;
 

@@ -25,14 +25,16 @@ function formatDailyNoteTitle(dateKey: string): string {
 }
 
 /**
- * Returns today's daily note, creating one titled with today's date the
- * first time it's opened. A page's `dailyNoteDate` is the source of
- * truth for "is this today's note", not its title — the title can be
- * renamed freely without breaking the lookup on a later visit.
+ * Returns the daily note for a "YYYY-MM-DD" key, creating it titled with
+ * that date the first time it's opened. A page's `dailyNoteDate` is the
+ * source of truth for "is this that day's note", not its title — the title
+ * can be renamed freely without breaking the lookup on a later visit.
  */
-export async function getOrCreateTodayNote(workspaceId: string): Promise<Page> {
+export async function getOrCreateDailyNote(
+  workspaceId: string,
+  dateKey: string,
+): Promise<Page> {
   await networkDelay();
-  const dateKey = todayDateKey();
   const db = mockDb.read();
 
   const existing = Object.values(db.pages).find(
@@ -55,4 +57,8 @@ export async function getOrCreateTodayNote(workspaceId: string): Promise<Page> {
   db.pages[page.id] = page;
   mockDb.write(db);
   return page;
+}
+
+export function getOrCreateTodayNote(workspaceId: string): Promise<Page> {
+  return getOrCreateDailyNote(workspaceId, todayDateKey());
 }

@@ -256,3 +256,11 @@ describe("groupIntoRuns", () => {
     expect(groupIntoRuns([])).toEqual([]);
   });
 });
+
+describe("extractPlainText for math", () => {
+  it("returns the LaTeX source so equations are searchable", () => {
+    expect(extractPlainText(makeBlock("math", { latex: "\\alpha + \\beta" }))).toBe(
+      "\\alpha + \\beta",
+    );
+  });
+});

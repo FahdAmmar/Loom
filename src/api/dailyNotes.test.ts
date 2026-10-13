@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getOrCreateTodayNote, todayDateKey } from "@/api/dailyNotes";
+import { getOrCreateDailyNote, getOrCreateTodayNote, todayDateKey } from "@/api/dailyNotes";
 
 describe("todayDateKey", () => {
   it("formats a date as YYYY-MM-DD", () => {
@@ -31,5 +31,17 @@ describe("getOrCreateTodayNote", () => {
     const inWorkspaceTwo = await getOrCreateTodayNote("ws-2");
     expect(inWorkspaceTwo.id).not.toBe(inWorkspaceOne.id);
     expect(inWorkspaceTwo.workspaceId).toBe("ws-2");
+  });
+});
+
+describe("getOrCreateDailyNote", () => {
+  it("creates and then reuses the note for a specific past or future date", async () => {
+    const first = await getOrCreateDailyNote("ws-cal", "2030-02-14");
+    expect(first.dailyNoteDate).toBe("2030-02-14");
+    expect(first.title).toContain("2030");
+    const again = await getOrCreateDailyNote("ws-cal", "2030-02-14");
+    expect(again.id).toBe(first.id);
+    const other = await getOrCreateDailyNote("ws-cal", "2030-02-15");
+    expect(other.id).not.toBe(first.id);
   });
 });

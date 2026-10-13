@@ -105,7 +105,9 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 6px);
 
-  --font-sans: -apple-system, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  --font-sans:
+    "Noto Sans Arabic Variable", -apple-system, "Segoe UI", Inter, Roboto, Helvetica, Arial,
+    sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
@@ -317,4 +319,62 @@
   .animate-dropdown-out {
     animation: dropdown-out 0.1s ease-in;
   }
+}
+
+/* Code highlighting reuses the brand tokens, so both themes keep their contrast. */
+.hljs-keyword,
+.hljs-built_in,
+.hljs-type,
+.hljs-literal,
+.hljs-selector-tag {
+  color: var(--brand-violet);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-attr,
+.hljs-symbol {
+  color: var(--brand-mint);
+}
+.hljs-number,
+.hljs-meta,
+.hljs-variable,
+.hljs-selector-class {
+  color: var(--brand-gold);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.hljs-title,
+.hljs-section,
+.hljs-name {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* Accent palettes. Every pair keeps button text at 4.5:1 or better in both themes. */
+:root[data-accent="mint"] {
+  --primary: #187e5e;
+  --primary-foreground: #f2fff9;
+}
+:root[data-accent="mint"].dark {
+  --primary: #4fd8a5;
+  --primary-foreground: #06201a;
+}
+:root[data-accent="violet"] {
+  --primary: #5a46d6;
+  --primary-foreground: #f7f5ff;
+}
+:root[data-accent="violet"].dark {
+  --primary: #8b7ff0;
+  --primary-foreground: #14102e;
+}
+:root[data-accent="rose"] {
+  --primary: #b4325e;
+  --primary-foreground: #fff5f8;
+}
+:root[data-accent="rose"].dark {
+  --primary: #f08aa8;
+  --primary-foreground: #2a0b16;
 }

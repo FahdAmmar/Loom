@@ -27,3 +27,8 @@ dist-ssr
 CLAUDE.local.md
 .claude/settings.local.json
 .claude/agent-memory-local/
+test-results
+playwright-report
+
+# Local agent worktrees (duplicate checkouts)
+.kilo

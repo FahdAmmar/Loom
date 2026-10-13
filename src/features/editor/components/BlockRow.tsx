@@ -18,11 +18,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DatabaseBlockView } from "@/features/database/components/DatabaseBlockView";
 import { BoardBlockView } from "@/features/editor/components/BoardBlockView";
 import { CodeBlockView } from "@/features/editor/components/CodeBlockView";
 import { DividerView } from "@/features/editor/components/DividerView";
+import { EmbedBlockView } from "@/features/editor/components/EmbedBlockView";
 import { FileBlockView } from "@/features/editor/components/FileBlockView";
 import { ImageBlockView } from "@/features/editor/components/ImageBlockView";
+import { MathBlockView } from "@/features/editor/components/MathBlockView";
 import { SlashMenu } from "@/features/editor/components/SlashMenu";
 import { TableBlockView } from "@/features/editor/components/TableBlockView";
 import { TextBlockView } from "@/features/editor/components/TextBlockView";
@@ -178,6 +181,27 @@ export const BlockRow = memo(function BlockRow({
           onChange={(next) => updateBlockContent(block.id, next)}
         />
       );
+      break;
+    case "embed":
+      content = (
+        <EmbedBlockView
+          url={typeof block.content.url === "string" ? block.content.url : ""}
+          onChange={(next) => updateBlockContent(block.id, next)}
+          onBackspaceEmpty={handlers.onBackspaceEmpty}
+        />
+      );
+      break;
+    case "math":
+      content = (
+        <MathBlockView
+          latex={typeof block.content.latex === "string" ? block.content.latex : ""}
+          onChange={(next) => updateBlockContent(block.id, next)}
+          onBackspaceEmpty={handlers.onBackspaceEmpty}
+        />
+      );
+      break;
+    case "database":
+      content = <DatabaseBlockView pageId={block.pageId} />;
       break;
     case "toggle": {
       const isExpanded = !collapsedToggleIds[block.id];

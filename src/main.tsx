@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { initDb } from "@/api/_mockDb";
 import { App } from "@/App";
 
+import "@fontsource-variable/noto-sans-arabic/wght.css";
 import "@/index.css";
 
 // Hydrate the in-memory database from IndexedDB (or migrate a pre-existing

@@ -112,3 +112,15 @@ describe("pageToMarkdown", () => {
     expect(pageToMarkdown("Empty Page", "page-1", [])).toBe("# Empty Page\n\n\n");
   });
 });
+
+describe("math blocks", () => {
+  it("export as a $$ fenced equation", () => {
+    const block = makeBlock("math", { latex: " E = mc^2 " });
+    expect(pageToMarkdown("T", block.pageId, [block])).toContain("$$\nE = mc^2\n$$");
+  });
+
+  it("export nothing for an empty equation", () => {
+    const block = makeBlock("math", { latex: "  " });
+    expect(pageToMarkdown("T", block.pageId, [block])).toBe("# T\n\n\n");
+  });
+});

@@ -82,6 +82,10 @@ function singleBlockToMarkdown(block: Block, allBlocks: Block[], indent: string)
       const url = typeof block.content.url === "string" ? block.content.url : "";
       return `[Video](${url})`;
     }
+    case "math": {
+      const latex = typeof block.content.latex === "string" ? block.content.latex.trim() : "";
+      return latex ? `$$\n${latex}\n$$` : "";
+    }
     case "table":
       return tableToMarkdown(block);
     case "board":

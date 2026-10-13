@@ -482,3 +482,21 @@ describe("getPageDeletionSnapshot / restorePagesFromSnapshot", () => {
     expect(restored.find((p) => p.id === child.id)?.parentId).toBe(parent.id);
   });
 });
+
+describe("updatePageCover", () => {
+  it("sets and clears a cover key", async () => {
+    const page = await pagesApi.createPage({
+      workspaceId: WS,
+      parentId: null,
+      title: "Cover test",
+    });
+    const withCover = await pagesApi.updatePageCover(page.id, "mint");
+    expect(withCover.cover).toBe("mint");
+    const cleared = await pagesApi.updatePageCover(page.id, undefined);
+    expect(cleared.cover).toBeUndefined();
+  });
+
+  it("rejects an unknown page", async () => {
+    await expect(pagesApi.updatePageCover("missing", "mint")).rejects.toThrow(ApiError);
+  });
+});

@@ -25,6 +25,7 @@ interface PageState {
   duplicatePage: (id: string) => Promise<Page>;
   renamePage: (id: string, title: string) => Promise<void>;
   setPageIcon: (id: string, icon: string | undefined) => Promise<void>;
+  setPageCover: (id: string, cover: string | undefined) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   deletePage: (id: string) => Promise<pagesApi.PageDeletionSnapshot>;
   /** Brings a page (and its descendants) back out of the trash. */
@@ -109,6 +110,18 @@ export const usePageStore = create<PageState>()(
         set((s) => ({ pagesById: { ...s.pagesById, [id]: { ...previous, icon } } }));
         try {
           const updated = await pagesApi.updatePageIcon(id, icon);
+          set((s) => ({ pagesById: { ...s.pagesById, [id]: updated } }));
+        } catch {
+          set((s) => ({ pagesById: { ...s.pagesById, [id]: previous } }));
+        }
+      },
+
+      setPageCover: async (id, cover) => {
+        const previous = get().pagesById[id];
+        if (!previous) return;
+        set((s) => ({ pagesById: { ...s.pagesById, [id]: { ...previous, cover } } }));
+        try {
+          const updated = await pagesApi.updatePageCover(id, cover);
           set((s) => ({ pagesById: { ...s.pagesById, [id]: updated } }));
         } catch {
           set((s) => ({ pagesById: { ...s.pagesById, [id]: previous } }));

@@ -61,7 +61,7 @@ export function WorkspaceRoute() {
     <EmptyState
       icon={<Home className="size-5" />}
       title="Pick a page from the sidebar"
-      description="Or start a new one — the block editor for whatever you write arrives in Phase 3."
+      description="Or start a new one and begin writing."
       action={
         <Button variant="outline" size="sm" className="mt-2" onClick={handleNewPage}>
           New page

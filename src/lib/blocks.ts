@@ -55,6 +55,7 @@ export function extractPlainText(block: Block): string {
   const { content } = block;
   if (typeof content.html === "string") return stripHtml(content.html);
   if (typeof content.code === "string") return content.code;
+  if (typeof content.latex === "string") return content.latex;
   if (Array.isArray(content.rows)) {
     return (content.rows as string[][]).flat().join(" ");
   }

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { orderedBlockIds, planMoves, pruneNested, rangeBetween, toggleId } from "./blockSelection";
+import {
+  orderedBlockIds,
+  planMoves,
+  pruneNested,
+  rangeBetween,
+  toggleId,
+} from "./blockSelection";
 import type { Block, BlockType } from "@/types/entities";
 
 function block(id: string, order: number, overrides: Partial<Block> = {}): Block {

@@ -27,6 +27,8 @@ export interface Page {
   parentId: Page["id"] | null;
   title: string;
   icon?: string;
+  /** Key of a built-in cover preset (see `lib/covers.ts`), never an image payload. */
+  cover?: string;
   isFavorite: boolean;
   /** Set only on auto-created daily notes, as a "YYYY-MM-DD" local-date key.
    * A regular page created by hand never has this. */
@@ -58,6 +60,7 @@ export type BlockType =
   | "board"
   | "file"
   | "embed"
+  | "math"
   | "database";
 
 export interface Block {

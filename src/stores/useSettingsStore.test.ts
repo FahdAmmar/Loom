@@ -29,3 +29,35 @@ describe("interface direction", () => {
     applyDirection("ltr");
   });
 });
+
+describe("accent color", () => {
+  afterEach(() => useSettingsStore.getState().setAccent("gold"));
+
+  it("defaults to gold with no attribute on <html>", () => {
+    expect(useSettingsStore.getInitialState().accent).toBe("gold");
+    expect(document.documentElement.dataset.accent).toBeUndefined();
+  });
+
+  it("sets data-accent for a non-default accent", () => {
+    useSettingsStore.getState().setAccent("violet");
+    expect(document.documentElement.dataset.accent).toBe("violet");
+  });
+
+  it("removes the attribute when switched back to gold", () => {
+    useSettingsStore.getState().setAccent("mint");
+    useSettingsStore.getState().setAccent("gold");
+    expect(document.documentElement.dataset.accent).toBeUndefined();
+  });
+});
+
+describe("last backup time", () => {
+  afterEach(() => useSettingsStore.setState({ lastBackupAt: null }));
+
+  it("starts empty and records an ISO time when a backup is marked done", () => {
+    expect(useSettingsStore.getInitialState().lastBackupAt).toBeNull();
+    useSettingsStore.getState().markBackupDone();
+    const stamp = useSettingsStore.getState().lastBackupAt;
+    expect(stamp).not.toBeNull();
+    expect(new Date(stamp!).toISOString()).toBe(stamp);
+  });
+});

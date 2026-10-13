@@ -12,7 +12,7 @@ If a change is about to add a field that could instead be computed from data tha
 
 ## State is split by who needs it
 
-Seven Zustand stores (`src/stores/`) — `useSettingsStore`, `useSidebarStore`, `useWorkspaceStore`, `usePageStore`, `useEditorStore`, `useSearchStore`, `useTagStore` — each own one concern, so a component reading only the theme doesn't re-render when unrelated state changes elsewhere. Purely local, single-component, ephemeral state (a graph's current zoom, a command palette's in-progress query) stays in `useState`. If you're unsure whether new state belongs in a store: does anything outside this one component need to read it, or does it need to survive the component unmounting? If not, `useState`.
+Zustand stores (`src/stores/`, one `use<Name>Store.ts` per concern — e.g. `useSettingsStore`, `usePageStore`, `useEditorStore`) each own one concern, so a component reading only the theme doesn't re-render when unrelated state changes elsewhere. Purely local, single-component, ephemeral state (a graph's current zoom, a command palette's in-progress query) stays in `useState`. If you're unsure whether new state belongs in a store: does anything outside this one component need to read it, or does it need to survive the component unmounting? If not, `useState`.
 
 ## Feature-first structure
 

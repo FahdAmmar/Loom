@@ -1,9 +1,11 @@
-import { ImageIcon, Loader2, Pencil, Upload } from "lucide-react";
+import { ImageIcon, Loader2, Pencil, Upload, X } from "lucide-react";
 import { useRef, useState, type ChangeEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { MAX_UPLOAD_BYTES, readFileAsDataUrl } from "@/features/editor/uploads";
 import { useToast } from "@/hooks/useToast";
+import { useT } from "@/i18n/useT";
 
 interface ImageBlockViewProps {
   url: string;
@@ -21,6 +23,8 @@ export function ImageBlockView({
   onBackspaceEmpty,
 }: ImageBlockViewProps) {
   const { toast } = useToast();
+  const t = useT();
+  const [isEnlarged, setEnlarged] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setEditing] = useState(url === "");
   const [isUploading, setUploading] = useState(false);
@@ -128,11 +132,40 @@ export function ImageBlockView({
 
   return (
     <figure className="group relative">
-      <img
-        src={url}
-        alt={alt ?? ""}
-        className="aspect-video max-h-[28rem] w-full rounded-md object-contain"
-      />
+      <button
+        type="button"
+        onClick={() => setEnlarged(true)}
+        aria-label={t("image.enlarge")}
+        className="block w-full cursor-zoom-in rounded-md"
+      >
+        <img
+          src={url}
+          alt={alt ?? ""}
+          className="aspect-video max-h-[28rem] w-full rounded-md object-contain"
+        />
+      </button>
+      <Dialog
+        open={isEnlarged}
+        onClose={() => setEnlarged(false)}
+        aria-label={alt || t("image.fallbackAlt")}
+        className="max-h-[92dvh] w-auto max-w-[min(96vw,80rem)] bg-transparent"
+      >
+        <div className="relative">
+          <img
+            src={url}
+            alt={alt ?? ""}
+            className="max-h-[88dvh] max-w-full rounded-lg object-contain"
+          />
+          <button
+            type="button"
+            onClick={() => setEnlarged(false)}
+            aria-label={t("image.close")}
+            className="absolute end-2 top-2 flex size-8 items-center justify-center rounded-md bg-black/60 text-white hover:bg-black/80"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      </Dialog>
       <button
         type="button"
         onClick={() => {

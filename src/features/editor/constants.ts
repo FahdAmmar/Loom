@@ -1,6 +1,7 @@
 import {
   ChevronRight,
   Code2,
+  Database,
   Heading1,
   Heading2,
   Heading3,
@@ -12,7 +13,9 @@ import {
   Megaphone,
   Minus,
   Paperclip,
+  PlaySquare,
   Quote,
+  Sigma,
   Table as TableIcon,
   Type,
 } from "lucide-react";
@@ -157,5 +160,26 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         },
       ],
     }),
+  },
+  {
+    type: "embed",
+    label: "YouTube video",
+    keywords: ["youtube", "video", "embed"],
+    icon: PlaySquare,
+    emptyContent: () => ({ url: "" }),
+  },
+  {
+    type: "math",
+    label: "Math equation",
+    keywords: ["math", "equation", "latex", "formula", "katex"],
+    icon: Sigma,
+    emptyContent: () => ({ latex: "" }),
+  },
+  {
+    type: "database",
+    label: "Database",
+    keywords: ["database", "table view", "subpages", "collection"],
+    icon: Database,
+    emptyContent: () => ({}),
   },
 ];

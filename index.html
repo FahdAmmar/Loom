@@ -10,6 +10,9 @@
           var state = raw ? JSON.parse(raw).state : {};
           var theme = state.theme || "system";
           var isRtl = state.direction === "rtl";
+          if (["mint", "violet", "rose"].indexOf(state.accent) !== -1) {
+            document.documentElement.dataset.accent = state.accent;
+          }
           document.documentElement.dir = isRtl ? "rtl" : "ltr";
           document.documentElement.lang = isRtl ? "ar" : "en";
           var prefersDark =
